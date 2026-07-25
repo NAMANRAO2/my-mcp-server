@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTheme, useWidgetSDK } from '@nitrostack/widgets';
+import { usePreviewData, usePreviewTheme } from '../preview';
 
 /**
  * Layer B surface: the moment of friction.
@@ -82,11 +83,15 @@ function statLabel(key: string, value: unknown): { label: string; value: string 
 }
 
 export default function InterventionModal() {
-  const theme = useTheme();
+  const hostTheme = useTheme();
   const { getToolOutput, callTool, sendFollowUpMessage } = useWidgetSDK();
-  const data = getToolOutput<InterventionData>();
+  const preview = usePreviewData<InterventionData>('/intervention-modal');
+  const previewTheme = usePreviewTheme();
   const [choice, setChoice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const data = getToolOutput<InterventionData>() ?? preview;
+  const theme = previewTheme ?? hostTheme;
 
   if (!data) {
     return (

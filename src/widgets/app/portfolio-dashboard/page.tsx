@@ -1,6 +1,7 @@
 'use client';
 
 import { useTheme, useWidgetSDK } from '@nitrostack/widgets';
+import { usePreviewData, usePreviewTheme } from '../preview';
 
 /**
  * Layer A surface: the user's holdings plus a news feed ranked by how much it actually
@@ -71,9 +72,13 @@ const DRIVER_LABEL: Record<RelevantEvent['driver'], string> = {
 };
 
 export default function PortfolioDashboard() {
-  const theme = useTheme();
+  const hostTheme = useTheme();
   const { getToolOutput, sendFollowUpMessage } = useWidgetSDK();
-  const data = getToolOutput<DashboardData>();
+  const preview = usePreviewData<DashboardData>('/portfolio-dashboard');
+  const previewTheme = usePreviewTheme();
+
+  const data = getToolOutput<DashboardData>() ?? preview;
+  const theme = previewTheme ?? hostTheme;
 
   if (!data) {
     return (
