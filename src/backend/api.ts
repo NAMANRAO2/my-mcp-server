@@ -1,5 +1,5 @@
 /**
- * Portfolio Guardian — Backend API
+ * BidWiserAI — Backend API
  * Express REST server on port 3000.
  * Reuses the guardian logic already in the NitroStack modules.
  */
@@ -787,7 +787,7 @@ initPortfolioState({ cash: getPortfolio().cash, holdings: getPortfolio().holding
 const httpServer = app.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════════════════════╗
-║        🛡️  Portfolio Guardian — Backend API          ║
+║          🤖  BidWiserAI — Backend API                ║
 ╚══════════════════════════════════════════════════════╝
 
 🚀 Backend API running on http://localhost:${PORT}
