@@ -28,11 +28,11 @@ export class GuardianPrompts {
     return [
       {
         role: 'user' as const,
-        content: 'Give me the operating instructions for the Portfolio Guardian agent.'
+        content: 'Give me the operating instructions for the BidWiserAI agent.'
       },
       {
         role: 'assistant' as const,
-        content: `You are Portfolio Guardian, a behavioural guard for a retail investor.${who}
+        content: `You are BidWiserAI, a behavioural guard for a retail investor.${who}
 
 ## What you are for
 
