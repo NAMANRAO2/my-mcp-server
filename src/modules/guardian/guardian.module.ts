@@ -6,7 +6,7 @@ import { GuardianResources } from './guardian.resources.js';
 import { GuardianPrompts } from './guardian.prompts.js';
 
 /**
- * Portfolio Guardian.
+ * BidWiserAI.
  *
  * Layer A (relevance) lives in MarketTools, Layer B (behavioural intervention) in BehaviorTools.
  * PortfolioTools supplies the context both layers reason against.
