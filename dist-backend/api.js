@@ -53,8 +53,33 @@ const getTradeHistory = memo(() => loadJson('trade-history.json'));
 const getWaitOutcomes = memo(() => loadJson('wait-outcomes.json'));
 const getHerdData = memo(() => loadJson('herd-sentiment.json'));
 // ─── decision log ─────────────────────────────────────────────────────────────
-const decisionLog = [];
-let decCounter = 0;
+const LOG_PATH = path.join(process.cwd(), 'logs', 'decision-log.jsonl');
+/**
+ * Rehydrate from the durable JSONL copy on boot.
+ *
+ * Without this, restarting the server (which happens a lot during development — rebuilds,
+ * crashes, port conflicts) silently reset the visible decision log to empty even though the file
+ * on disk still had every prior entry. Also seeds decCounter past whatever id is already on disk
+ * so a fresh boot cannot hand out a decision_id that collides with one already logged.
+ */
+function loadPersistedDecisions() {
+    if (!fs.existsSync(LOG_PATH))
+        return [];
+    const lines = fs.readFileSync(LOG_PATH, 'utf-8').split('\n').filter(l => l.trim());
+    const entries = [];
+    for (const line of lines) {
+        try {
+            entries.push(JSON.parse(line));
+        }
+        catch { /* skip a corrupt line */ }
+    }
+    return entries;
+}
+const decisionLog = loadPersistedDecisions();
+let decCounter = decisionLog.reduce((max, e) => {
+    const n = Number(e.decision_id?.replace(/^DEC-/, ''));
+    return Number.isFinite(n) ? Math.max(max, n) : max;
+}, 0);
 function nextId() {
     decCounter += 1;
     return `DEC-${String(decCounter).padStart(4, '0')}`;
@@ -62,9 +87,8 @@ function nextId() {
 function appendDecision(entry) {
     decisionLog.push(entry);
     try {
-        const dir = path.join(process.cwd(), 'logs');
-        fs.mkdirSync(dir, { recursive: true });
-        fs.appendFileSync(path.join(dir, 'decision-log.jsonl'), JSON.stringify(entry) + '\n');
+        fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
+        fs.appendFileSync(LOG_PATH, JSON.stringify(entry) + '\n');
     }
     catch { /* non-fatal */ }
     return entry;

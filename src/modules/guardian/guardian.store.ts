@@ -243,8 +243,37 @@ export interface DecisionLogEntry {
   user_note?: string;
 }
 
-const decisionLog: DecisionLogEntry[] = [];
-let decisionCounter = 0;
+const LOG_PATH = path.join(process.cwd(), 'logs', 'decision-log.jsonl');
+
+/**
+ * Rehydrate from the durable JSONL copy on boot.
+ *
+ * Without this, every restart silently wiped the visible decision log back to empty even though
+ * the file on disk still had every prior entry — "it was there a minute ago" for no reason other
+ * than the process having been bounced. Loading it back in also lets nextDecisionId() continue
+ * past whatever is already on disk instead of restarting at DEC-0001 and colliding with entries
+ * that already used that id.
+ */
+function loadPersistedDecisions(): DecisionLogEntry[] {
+  if (!fs.existsSync(LOG_PATH)) return [];
+  const lines = fs.readFileSync(LOG_PATH, 'utf-8').split('\n').filter((l) => l.trim());
+  const entries: DecisionLogEntry[] = [];
+  for (const line of lines) {
+    try {
+      entries.push(JSON.parse(line));
+    } catch {
+      /* skip a corrupt line rather than fail the whole load */
+    }
+  }
+  return entries;
+}
+
+const decisionLog: DecisionLogEntry[] = loadPersistedDecisions();
+
+let decisionCounter = decisionLog.reduce((max, e) => {
+  const n = Number(e.decision_id?.replace(/^DEC-/, ''));
+  return Number.isFinite(n) ? Math.max(max, n) : max;
+}, 0);
 
 export function nextDecisionId(): string {
   decisionCounter += 1;
@@ -255,11 +284,11 @@ export function appendDecision(entry: DecisionLogEntry): DecisionLogEntry {
   decisionLog.push(entry);
 
   // Best-effort durable copy. A failure here must never break the tool call — the in-memory
-  // log is the source of truth for the session.
+  // log, now seeded from this same file at boot, is the source of truth for the running process.
   try {
-    const logDir = path.join(process.cwd(), 'logs');
+    const logDir = path.dirname(LOG_PATH);
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-    fs.appendFileSync(path.join(logDir, 'decision-log.jsonl'), `${JSON.stringify(entry)}\n`, 'utf-8');
+    fs.appendFileSync(LOG_PATH, `${JSON.stringify(entry)}\n`, 'utf-8');
   } catch {
     /* non-fatal */
   }
