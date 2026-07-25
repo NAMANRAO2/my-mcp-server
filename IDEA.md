@@ -123,7 +123,32 @@ All figures are **fabricated mock data** for demonstration. The historical patte
 real episodes (2020 crash, 2022 rate-hike selloff, 2021 meme-stock run) but the numbers are
 illustrative, not researched, and are labelled as such in the data itself.
 
-## 8. Done means
+## 8. Scope decision: F&O persona
+
+The demo investor was rewritten from a long-term, buy-and-hold profile to an **active trader**
+persona that explicitly trades short-horizon swing positions and a leveraged, expiry-bound index
+option (a NIFTY weekly call). This was a deliberate replacement, not an addition.
+
+**Why this had to be a full rewrite, not a bolt-on.** The original profile stated: *"Long-term
+wealth building. Not trading. Money not needed for at least 5 years."* Holding a weekly-expiry
+option alongside that claim is a logical contradiction, not a stylistic mismatch — a technical
+reviewer asking *"why does a long-term, not-trading investor hold this?"* has no honest answer if
+the profile text is left unchanged. So `stated_goal`, `stated_horizon_years` (now `0`), and
+`monthly_contribution`'s narrative all changed to match, and every existing equity holding's
+`thesis` was reframed from a long-term reason to a short-term trading reason. The reflection
+templates that assumed a long horizon (`guardian.logic.ts` and its mirror in `src/backend/api.ts`)
+now branch on `stated_horizon_years` instead of hardcoding "not needed for five years."
+
+**Why the other symbols and datasets were left alone.** `market-events.json`,
+`herd-sentiment.json`, and `trade-history.json` still key off the same seven equity tickers
+(AAPL, MSFT, NVDA, JNJ, PG, XOM, VOO) — only their per-holding *thesis* text changed. Rebuilding
+those datasets around F&O-only instruments would have been a much larger undertaking than "fix
+the persona contradiction," with no corresponding gain: an active trader holding recognizable
+large-cap swing trades alongside one option position is realistic and required no new detection
+logic. The two-persona alternative (a wholly separate F&O trader demo, run alongside the existing
+long-term one) was considered and explicitly rejected in favour of this single, consistent persona.
+
+## 9. Done means
 
 - [x] Tools registered and individually testable in NitroStudio — 8 tools, 7 resources, 3 prompts
 - [x] All three patterns detected from natural language, with the trade-intent gate holding

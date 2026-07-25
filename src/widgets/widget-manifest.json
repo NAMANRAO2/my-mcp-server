@@ -12,7 +12,7 @@
           "data": {
             "currency": "USD",
             "as_of": "2026-07-25",
-            "profile": { "display_name": "Demo Investor", "stated_horizon_years": 8, "stated_goal": "Long-term wealth building." },
+            "profile": { "display_name": "Demo Investor", "stated_horizon_years": 0, "stated_goal": "Active trading for short-term gains, including index options traded around expiries." },
             "holdings": [
               {
                 "symbol": "AAPL", "name": "Apple Inc.", "sector": "tech", "quantity": 12, "avg_price": 214.5,

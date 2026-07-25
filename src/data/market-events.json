@@ -10,7 +10,8 @@
     "XOM": { "price": 118.3, "day_change_pct": -0.6, "week_change_pct": 0.8, "year_change_pct": 4.9 },
     "VOO": { "price": 548.9, "day_change_pct": -1.9, "week_change_pct": -2.6, "year_change_pct": 7.1 },
     "QBITX": { "price": 84.3, "day_change_pct": 12.6, "week_change_pct": 41.0, "year_change_pct": 310.0 },
-    "NFLX": { "price": 612.4, "day_change_pct": -7.9, "week_change_pct": -8.2, "year_change_pct": 3.3 }
+    "NFLX": { "price": 612.4, "day_change_pct": -7.9, "week_change_pct": -8.2, "year_change_pct": 3.3 },
+    "NIFTYCE": { "price": 76.2, "day_change_pct": -46.5, "week_change_pct": -61.2, "year_change_pct": -61.2 }
   },
   "indices": {
     "SP500": { "day_change_pct": -2.1, "week_change_pct": -3.4 },
@@ -156,6 +157,18 @@
       "affects_sectors": ["tech"],
       "affects_symbols": ["MSFT"],
       "sentiment": "negative"
+    },
+    {
+      "id": "E13",
+      "date": "2026-07-25",
+      "type": "expiry_volatility",
+      "scope": "company",
+      "headline": "NIFTY reverses sharply intraday, weekly 24850 Call premium collapses into expiry week",
+      "summary": "The underlying index gave back the session's gains in the final hour. With only a few trading days left before this contract's weekly expiry, time decay is accelerating on top of the adverse move — a combination that makes expiry-week options risk different in kind from the same percentage move in a stock.",
+      "affects_sectors": ["index_derivatives"],
+      "affects_symbols": ["NIFTYCE"],
+      "sentiment": "negative",
+      "flags": ["near_expiry", "high_leverage", "time_decay"]
     }
   ]
 }

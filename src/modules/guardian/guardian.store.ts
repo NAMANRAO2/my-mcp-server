@@ -56,6 +56,13 @@ export interface Holding {
   avg_price: number;
   purchase_date: string;
   thesis: string;
+  /** Present only on F&O-style instruments (options/futures); absent on plain equity. */
+  instrument_type?: 'option' | 'future';
+  option_type?: 'CE' | 'PE';
+  underlying?: string;
+  strike_price?: number;
+  lot_size?: number;
+  expiry_date?: string;
 }
 
 export interface Portfolio {

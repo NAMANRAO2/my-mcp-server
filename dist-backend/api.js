@@ -273,19 +273,28 @@ function detectSignal(rawText) {
 }
 // ─── reflection builder ───────────────────────────────────────────────────────
 function buildReflection(pattern, snapshot, relevance, historical) {
+    // Long-horizon and active-trader personas need different cooling-off language — "this money
+    // isn't needed for years" is false for someone who has said they are not a buy-and-hold investor.
+    const horizon = snapshot.profile.stated_horizon_years;
+    const panicCoolingOff = horizon >= 1
+        ? `You have said your horizon is around ${horizon} years and this money is not needed for a while. Sitting with this for one trading session costs nothing if the reasoning still holds tomorrow.`
+        : `Your own stated plan for this account is: "${String(snapshot.profile.stated_goal).replace(/\.$/, '')}". If today's move does not change that plan, waiting one session before acting costs nothing.`;
+    const fomoCoolingOff = snapshot.profile.monthly_contribution > 0
+        ? `You have said you deploy about ${snapshot.currency} ${snapshot.profile.monthly_contribution} a month into new positions on purpose, with a plan — not on impulse. If this still appeals in a week, you can size into it deliberately then, rather than in a hurry now.`
+        : `If this position still appeals in a week, it will still be there to open — with a size you chose deliberately rather than in a hurry.`;
     const templates = {
         panic_sell: {
             headline: 'Before this one goes through — a moment of context',
             pattern_note: 'The language here matches a pattern people fall into during declines: urgency, "all", and fear framing aimed at a price move rather than a change in the underlying reason for owning the position.',
             question: 'You wrote down a reason for each of these when you bought them. Has any of those reasons stopped being true today, or has only the price changed?',
-            cooling_off: `You have said your horizon is around ${snapshot.profile.stated_horizon_years} years and this money is not needed for at least five. Sitting with this for one trading session costs nothing if the reasoning still holds tomorrow.`,
+            cooling_off: panicCoolingOff,
             options: ['Review the original reason I wrote down for each of these', 'See what actually moved today versus what did not', 'Wait until tomorrow and revisit', 'Proceed anyway — I have considered this']
         },
         fomo_buy: {
             headline: 'Before you open this position — a moment of context',
             pattern_note: 'The framing here is about the crowd and about speed — what other people are doing, and getting in before something happens. Notice what is missing: a reason this belongs in your portfolio that would still make sense if the price had not moved.',
             question: 'If this name had gone sideways for the last three months instead of running up, would you still want to own it? And if the answer is no, what exactly are you buying?',
-            cooling_off: `Your plan puts ${snapshot.currency} ${snapshot.profile.monthly_contribution} a month into a broad fund on purpose. If this still appeals in a week, it will still be available — with a size you chose deliberately rather than in a hurry.`,
+            cooling_off: fomoCoolingOff,
             options: ['Show me what this would do to my sector concentration', 'Show me how similar crowded entries have played out', 'Set a reminder to revisit in 7 days', 'Proceed anyway — I have considered this']
         },
         herd_follow: {

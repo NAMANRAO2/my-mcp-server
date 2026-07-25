@@ -428,6 +428,19 @@ export interface ReflectionOutput {
   disclaimer: string;
 }
 
+/**
+ * Long-horizon and active-trader personas need different cooling-off language — "this money isn't
+ * needed for years" is simply false for someone who has said they are not a buy-and-hold investor.
+ * Branching on the stated horizon keeps the reflection honest about whichever profile is loaded,
+ * rather than assuming everyone using this server is investing for the long run.
+ */
+function horizonPhrase(snapshot: PortfolioSnapshot): string {
+  const horizon = snapshot.profile.stated_horizon_years;
+  return horizon >= 1
+    ? `a stated horizon of ${horizon} years`
+    : `no stated long-term horizon — the plan on file is: "${snapshot.profile.stated_goal.replace(/\.$/, '')}"`;
+}
+
 export function buildReflection(input: ReflectionInput): ReflectionOutput {
   const snapshot = input.snapshot ?? valuePortfolio();
   const relevance = input.relevance ?? null;
@@ -465,7 +478,10 @@ export function buildReflection(input: ReflectionInput): ReflectionOutput {
       question = specific
         ? `The news attached to ${targetList} is specific to the company, not just the market. Does what you have read actually change the reason you bought it — or is the size of today's price move doing the arguing?`
         : `You wrote down a reason for each of these when you bought them${theses.length ? ` — ${theses[0]}` : ''}. Has any of those reasons stopped being true today, or has only the price changed?`;
-      coolingOff = `You have said your horizon is around ${horizon} years and this money is not needed for at least five. Sitting with this for one trading session costs nothing if the reasoning still holds tomorrow.`;
+      coolingOff =
+        horizon >= 1
+          ? `You have said your horizon is around ${horizon} years and this money is not needed for a while. Sitting with this for one trading session costs nothing if the reasoning still holds tomorrow.`
+          : `Your own stated plan for this account is: "${snapshot.profile.stated_goal.replace(/\.$/, '')}". If today's move does not change that plan, waiting one session before acting costs nothing.`;
       options = [
         'Review the original reason I wrote down for each of these',
         'See what actually moved today versus what did not',
@@ -497,7 +513,10 @@ export function buildReflection(input: ReflectionInput): ReflectionOutput {
         'The framing here is about the crowd and about speed — what other people are doing, and getting in before something happens. Notice what is missing from it: a reason this belongs in your portfolio that would still make sense if the price had not moved.';
       question =
         'If this name had gone sideways for the last three months instead of running up, would you still want to own it? And if the answer is no, what exactly are you buying?';
-      coolingOff = `Your plan puts ${snapshot.currency} ${snapshot.profile.monthly_contribution} a month into a broad fund on purpose. If this position still appeals in a week, it will still be a position you can open in a week — with a size you chose deliberately rather than in a hurry.`;
+      coolingOff =
+        snapshot.profile.monthly_contribution > 0
+          ? `You have said you deploy about ${snapshot.currency} ${snapshot.profile.monthly_contribution} a month into new positions on purpose, with a plan — not on impulse. If this still appeals in a week, you can size into it deliberately then, rather than in a hurry now.`
+          : `If this position still appeals in a week, it will still be there to open — with a size you chose deliberately rather than in a hurry.`;
       options = [
         'Show me what this would do to my sector concentration',
         'Show me how similar crowded entries have played out',
@@ -511,7 +530,7 @@ export function buildReflection(input: ReflectionInput): ReflectionOutput {
       headline = 'Before you follow this — a moment of context';
       observation = relevance
         ? `${relevance.explanation} ${relevance.why_it_matters_or_not}`
-        : `Your portfolio is ${snapshot.holdings.length} positions across ${snapshot.sector_breakdown.length} sectors, with a stated horizon of ${horizon} years. ${snapshot.concentration_note}`;
+        : `Your portfolio is ${snapshot.holdings.length} positions across ${snapshot.sector_breakdown.length} sectors, with ${horizonPhrase(snapshot)}. ${snapshot.concentration_note}`;
       patternNote =
         'The reason given for this trade is someone else\'s action rather than your own read of the situation. That is worth noticing on its own — not because they are wrong, but because you cannot see their time horizon, their tax position, their cash needs, or how big this position is relative to the rest of what they own.';
       question =
