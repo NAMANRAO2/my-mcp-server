@@ -726,7 +726,7 @@ liveEvents.on('tick', (quote) => {
             client.send(payload);
     });
 });
-initLiveQuotes(getMarketData().quotes.NIFTYCE).catch((err) => {
+initLiveQuotes(getMarketData().quotes).catch((err) => {
     console.error('❌ [LiveQuotes] Failed to initialise:', err.message);
 });
 //# sourceMappingURL=api.js.map

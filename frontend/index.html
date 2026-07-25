@@ -234,6 +234,34 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Trade panel ── */
+    .trade-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr auto; gap: 14px; align-items: end; }
+    @media (max-width: 700px) { .trade-grid { grid-template-columns: 1fr 1fr; } }
+    .field-label {
+      font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.6px; margin-bottom: 7px; display: block;
+    }
+    .field-select, .field-input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 11px 12px; color: var(--text);
+      font-family: 'Inter', sans-serif; font-size: 14px; transition: border-color 0.2s;
+    }
+    .field-select { cursor: pointer; }
+    .field-select:focus, .field-input:focus { outline: none; border-color: var(--accent); }
+    .trade-btn { padding: 11px 26px; white-space: nowrap; }
+    .trade-quote-preview {
+      font-size: 12px; color: var(--muted); margin-top: 14px; padding-top: 14px;
+      border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px;
+    }
+    .trade-quote-preview .price { font-size: 15px; font-weight: 700; color: var(--text); }
+    .trade-result-banner {
+      margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 13px;
+      display: none; align-items: center; gap: 8px;
+    }
+    .trade-result-banner.show { display: flex; }
+    .trade-result-banner.success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); color: var(--green); }
+    .trade-result-banner.error   { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.25);  color: var(--red); }
+
     /* ── Empty/Error states ── */
     .empty { text-align: center; padding: 40px; color: var(--muted); }
     .empty .empty-icon { font-size: 40px; margin-bottom: 12px; }
@@ -342,25 +370,26 @@
               <div class="card-subtitle">Paper trading — updates this demo portfolio only, no real orders are placed</div>
             </div>
           </div>
-          <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+          <div class="trade-grid">
             <div>
-              <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">SYMBOL</label>
-              <select id="trade-symbol" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);min-width:140px;"></select>
+              <label class="field-label">Symbol</label>
+              <select id="trade-symbol" class="field-select" onchange="updateTradePreview()"></select>
             </div>
             <div>
-              <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">SIDE</label>
-              <select id="trade-side" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);">
+              <label class="field-label">Side</label>
+              <select id="trade-side" class="field-select" onchange="updateTradePreview()">
                 <option value="sell">Sell</option>
                 <option value="buy">Buy</option>
               </select>
             </div>
             <div>
-              <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">QUANTITY</label>
-              <input id="trade-qty" type="number" min="1" step="1" value="1" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);width:100px;" />
+              <label class="field-label">Quantity</label>
+              <input id="trade-qty" class="field-input" type="number" min="1" step="1" value="1" oninput="updateTradePreview()" />
             </div>
-            <button class="btn btn-primary" onclick="submitTrade()" id="trade-btn" style="padding:9px 20px;">Execute</button>
+            <button class="btn btn-primary trade-btn" onclick="submitTrade()" id="trade-btn">Execute</button>
           </div>
-          <div id="trade-result" style="margin-top:12px;font-size:13px;"></div>
+          <div id="trade-preview" class="trade-quote-preview"></div>
+          <div id="trade-result" class="trade-result-banner"></div>
         </div>
       </div>
     </div>
@@ -419,13 +448,6 @@ Examples:
 • I want to sell all my tech stocks immediately, the market is crashing!
 • Everyone is buying QBITX, it's going to 10x! I need to buy NOW!
 • The whole market is shifting to ESG funds, I should follow"></textarea>
-
-              <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn btn-outline" onclick="setExample('panic')">😱 Panic Sell</button>
-                <button class="btn btn-outline" onclick="setExample('fomo')">🚀 FOMO Buy</button>
-                <button class="btn btn-outline" onclick="setExample('herd')">🐑 Herd Follow</button>
-                <button class="btn btn-outline" onclick="setExample('calm')">😊 Calm Query</button>
-              </div>
 
               <button id="analyze-btn" class="btn btn-primary" onclick="analyzeIntent()">
                 <span id="analyze-btn-icon">🔍</span>
@@ -491,6 +513,7 @@ function colorPct(n) { return n >= 0 ? 'pos' : 'neg'; }
 // refetch of /api/portfolio — real-time enough to feel alive, without a network round trip per tick
 // or two competing implementations of the same P&L arithmetic that could quietly drift apart.
 let refreshTimer = null;
+let lastHoldings = [];
 function scheduleRefresh(delay = 1500) {
   if (refreshTimer) return;
   refreshTimer = setTimeout(() => {
@@ -541,7 +564,9 @@ async function loadLiveStatus() {
   try {
     const res = await apiFetch('/api/live-status');
     if (!res.success) return;
-    const modeLabel = { live: '● LIVE', mock: '○ MOCK DATA', degraded: '△ DEGRADED' }[res.data.overall_mode] || res.data.overall_mode;
+    // 'simulated' still means every price is actively ticking (just not sourced from Finnhub), so
+    // it reads as "Live" here too — the true per-symbol source is always visible in the quote badge.
+    const modeLabel = { live: '● Live', simulated: '● Live', mock: '○ Static' }[res.data.overall_mode] || res.data.overall_mode;
     document.getElementById('live-badge').textContent = modeLabel;
   } catch { /* keep whatever the WS connection state already shows */ }
 }
@@ -584,16 +609,19 @@ async function loadDashboard() {
         <td class="${colorPct(h.day_change_pct)}">${fmtPct(h.day_change_pct)}</td>
         <td class="${colorPct(h.unrealized_gain)}">${fmt(h.unrealized_gain)}</td>
         <td>${(h.weight_of_total * 100).toFixed(1)}%</td>
-        <td><button class="btn btn-outline" style="padding:4px 10px;font-size:11px;" onclick="document.getElementById('trade-symbol').value='${h.symbol}'">Trade</button></td>
+        <td><button class="btn btn-outline" style="padding:4px 10px;font-size:11px;" onclick="document.getElementById('trade-symbol').value='${h.symbol}'; updateTradePreview();">Trade</button></td>
       </tr>
     `;
     }).join('');
+
+    lastHoldings = d.holdings;
 
     // Trade symbol dropdown — only symbols actually held, since only those have a live/simulated price
     const tradeSelect = document.getElementById('trade-symbol');
     const previousSelection = tradeSelect.value;
     tradeSelect.innerHTML = d.holdings.map(h => `<option value="${h.symbol}">${h.symbol} — ${h.quantity} held</option>`).join('');
     if (d.holdings.some(h => h.symbol === previousSelection)) tradeSelect.value = previousSelection;
+    updateTradePreview();
 
     // Sector bars
     const maxSector = Math.max(...d.sector_breakdown.map(s => s.market_value));
@@ -654,21 +682,15 @@ async function loadMarket() {
       </div>
     `).join('');
 
-    // Events
-    const bandDots = { high:'dot-high', medium:'dot-medium', low:'dot-low', noise:'dot-noise' };
-    const bandClasses = { high:'band-high', medium:'band-medium', low:'band-low', noise:'band-noise' };
-    document.getElementById('events-list').innerHTML = d.events.map(e => `
+    // Events — the most relevant handful only, already ranked by the backend
+    document.getElementById('events-list').innerHTML = d.events.slice(0, 7).map(e => `
       <div class="event-card">
-        <div class="relevance-dot ${bandDots[e.relevance?.relevance_band] || 'dot-noise'}"></div>
         <div style="flex:1;">
           <div class="event-headline">${e.headline}</div>
           <div class="event-meta">${e.date} · ${e.type} · ${e.scope}</div>
-          ${e.relevance?.relevance_band !== 'noise' && e.relevance?.explanation ?
+          ${e.relevance?.explanation ?
             `<div style="font-size:12px;color:var(--muted);margin-top:4px;">${e.relevance.explanation}</div>` : ''}
         </div>
-        <span class="event-band ${bandClasses[e.relevance?.relevance_band] || 'band-noise'}">
-          ${(e.relevance?.relevance_band || 'noise').toUpperCase()}
-        </span>
       </div>
     `).join('');
 
@@ -677,17 +699,6 @@ async function loadMarket() {
   } catch(e) {
     document.getElementById('market-loading').innerHTML = `<div class="empty-icon">❌</div><p style="color:var(--red)">Cannot reach backend: ${e.message}</p>`;
   }
-}
-
-// ─── EXAMPLES ────────────────────────────────────────────────────────────────
-const examples = {
-  panic: "I want to sell all my tech stocks immediately, the market is crashing and I'm losing money!",
-  fomo:  "Everyone is buying QBITX, it's going to 10x! I need to buy NOW before I miss out! The whole social media is talking about it!",
-  herd:  "My friend just sold all of his ESG funds and moved to cash. I think I should do the same with my portfolio.",
-  calm:  "How is my portfolio performing today? What's the total value?"
-};
-function setExample(k) {
-  document.getElementById('intent-input').value = examples[k];
 }
 
 // ─── ANALYZE ─────────────────────────────────────────────────────────────────
@@ -902,6 +913,25 @@ async function loadLog() {
 // ─── EXECUTE TRADE ────────────────────────────────────────────────────────────
 // Paper trading only — mutates the demo portfolio via the backend's in-memory + persisted state.
 // No brokerage connection, no real order, no real money at any point in this path.
+function updateTradePreview() {
+  const symbol = document.getElementById('trade-symbol').value;
+  const side = document.getElementById('trade-side').value;
+  const quantity = Number(document.getElementById('trade-qty').value) || 0;
+  const previewEl = document.getElementById('trade-preview');
+  const h = lastHoldings.find(x => x.symbol === symbol);
+
+  if (!h) { previewEl.innerHTML = ''; return; }
+
+  const badge = QUOTE_BADGE[h.quote_mode] || QUOTE_BADGE.mock;
+  const estimated = h.current_price * quantity;
+  previewEl.innerHTML = `
+    <span class="price">${fmt(h.current_price)}</span>
+    <span class="${colorPct(h.day_change_pct)}">${fmtPct(h.day_change_pct)}</span>
+    <span style="font-weight:600;${badge.style}">${badge.label}</span>
+    <span style="margin-left:auto;">${side === 'buy' ? 'Cost' : 'Proceeds'}: <strong style="color:var(--text)">${fmt(estimated)}</strong></span>
+  `;
+}
+
 async function submitTrade() {
   const symbol = document.getElementById('trade-symbol').value;
   const side = document.getElementById('trade-side').value;
@@ -910,11 +940,13 @@ async function submitTrade() {
   const resultEl = document.getElementById('trade-result');
 
   if (!symbol || !quantity || quantity <= 0) {
-    resultEl.innerHTML = `<span style="color:var(--red)">Enter a symbol and a positive quantity.</span>`;
+    resultEl.className = 'trade-result-banner show error';
+    resultEl.textContent = 'Enter a symbol and a positive quantity.';
     return;
   }
 
   btn.disabled = true;
+  resultEl.className = 'trade-result-banner show';
   resultEl.textContent = 'Executing…';
 
   try {
@@ -925,10 +957,12 @@ async function submitTrade() {
     if (!res.success) throw new Error(res.error);
 
     const t = res.data.trade;
-    resultEl.innerHTML = `<span style="color:var(--green)">✅ ${t.side.toUpperCase()} ${t.quantity} ${t.symbol} @ ${fmt(t.price)} (${t.price_mode}) — cash now ${fmt(t.cash_after)}</span>`;
+    resultEl.className = 'trade-result-banner show success';
+    resultEl.textContent = `✅ ${t.side.toUpperCase()} ${t.quantity} ${t.symbol} @ ${fmt(t.price)} (${t.price_mode}) — cash now ${fmt(t.cash_after)}`;
     loadDashboard();
   } catch (e) {
-    resultEl.innerHTML = `<span style="color:var(--red)">❌ ${e.message}</span>`;
+    resultEl.className = 'trade-result-banner show error';
+    resultEl.textContent = `❌ ${e.message}`;
   } finally {
     btn.disabled = false;
   }

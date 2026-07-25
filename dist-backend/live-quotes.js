@@ -15,7 +15,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { EventEmitter } from 'events';
 import { WebSocket } from 'ws';
-const FINNHUB_KEY = process.env.FINNHUB_API_KEY?.trim();
+// Read lazily inside initLiveQuotes(), NOT at module top level. ES module imports are hoisted and
+// fully evaluated before any of the importing file's own top-level statements run — so if this
+// were read here, it would execute before api.ts's own `dotenv.config()` call ever fires, and
+// FINNHUB_KEY would be undefined forever regardless of what's actually in .env. This bug was
+// invisible during earlier testing only because no key existed yet either way.
+let FINNHUB_KEY;
 const TRACKED_EQUITY_SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'JNJ', 'PG', 'XOM', 'VOO'];
 const SIMULATED_SYMBOL = 'NIFTYCE';
 const SNAPSHOT_PATH = path.join(process.cwd(), 'logs', 'live-quotes.json');
@@ -45,15 +50,18 @@ export function getAllLiveQuotes() {
 export function getLiveStatus() {
     const tracked = [...quotes.values()];
     const keyConfigured = !!FINNHUB_KEY;
+    const equities = tracked.filter((q) => TRACKED_EQUITY_SYMBOLS.includes(q.symbol));
+    const anyReallyLive = equities.some((q) => q.mode === 'live');
+    const anyStuck = equities.some((q) => q.mode === 'error' || q.mode === 'mock');
     return {
         key_configured: keyConfigured,
         tracked_symbols: [...TRACKED_EQUITY_SYMBOLS, SIMULATED_SYMBOL],
         quotes: tracked,
-        overall_mode: !keyConfigured
-            ? 'mock'
-            : tracked.some((q) => TRACKED_EQUITY_SYMBOLS.includes(q.symbol) && q.mode === 'error')
-                ? 'degraded'
-                : 'live'
+        // 'live': at least one real Finnhub tick landed. 'simulated': nothing real is connected, but
+        // every symbol is still actively ticking (the fallback simulator, not a frozen mock value).
+        // 'mock' is reserved for the case a symbol has no data source moving it at all — after the
+        // simulator fallback below, that should not normally happen.
+        overall_mode: anyReallyLive ? 'live' : anyStuck ? 'mock' : 'simulated'
     };
 }
 /** Only 'live' and 'simulated' quotes are safe to use for valuation — 'error' entries carry no usable price. */
@@ -141,45 +149,71 @@ function scheduleReconnect() {
     }, 5000);
 }
 // ---------------------------------------------------------------------------
-// NIFTYCE — simulated (no free real Indian F&O feed exists)
+// Simulated ticker — used for NIFTYCE always (no free real Indian F&O feed exists), and as the
+// fallback for any equity that has no real Finnhub connection, so nothing on the dashboard ever
+// sits frozen. Each symbol gets its own interval and its own random walk.
 // ---------------------------------------------------------------------------
-function startNiftySimulator(startPrice, startDayChangePct) {
+const simulatorsRunning = new Set();
+function startSimulatedTicker(symbol, startPrice, startDayChangePct, swingPct, note) {
+    if (simulatorsRunning.has(symbol))
+        return; // never double-start (e.g. a late Finnhub error after seeding)
+    simulatorsRunning.add(symbol);
     let price = startPrice;
     // Derive an implied "previous close" from the seeded day-change so the walk has a fixed
     // reference point — this is what keeps day_change_pct meaningful as price drifts tick to tick.
     const impliedPreviousClose = startPrice / (1 + startDayChangePct / 100);
     const tick = () => {
-        const driftPct = (Math.random() - 0.5) * 6; // +/-3% swing per tick — options are volatile
-        price = Math.max(0.5, price * (1 + driftPct / 100));
+        const driftPct = (Math.random() - 0.5) * swingPct;
+        price = Math.max(0.01, price * (1 + driftPct / 100));
         emitTick({
-            symbol: SIMULATED_SYMBOL,
+            symbol,
             price: Number(price.toFixed(2)),
             day_change_pct: Number((((price - impliedPreviousClose) / impliedPreviousClose) * 100).toFixed(2)),
             mode: 'simulated',
             updated_at: new Date().toISOString(),
-            note: 'Simulated. Real-time Indian F&O data requires a paid, broker-linked feed (e.g. Kite Connect, Upstox) — not available on any free API.'
+            ...(note ? { note } : {})
         });
     };
     tick();
     setInterval(tick, 2000);
 }
+const NO_LIVE_FEED_NOTE = 'Simulated. Real-time Indian F&O data requires a paid, broker-linked feed (e.g. Kite Connect, Upstox) — not available on any free API.';
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
-export async function initLiveQuotes(mockNiftyQuote) {
-    startNiftySimulator(mockNiftyQuote.price, mockNiftyQuote.day_change_pct);
+export async function initLiveQuotes(mockQuotes) {
+    FINNHUB_KEY = process.env.FINNHUB_API_KEY?.trim();
+    // NIFTYCE always simulates — there is no free real feed for it regardless of key.
+    const nifty = mockQuotes[SIMULATED_SYMBOL];
+    startSimulatedTicker(SIMULATED_SYMBOL, nifty.price, nifty.day_change_pct, 6, NO_LIVE_FEED_NOTE);
+    const startEquityFallback = (symbol) => {
+        const mock = mockQuotes[symbol];
+        if (!mock)
+            return;
+        // Equities swing far more gently than an option — 0.6% per tick reads as a real stock moving,
+        // not as noise.
+        startSimulatedTicker(symbol, mock.price, mock.day_change_pct, 0.6);
+    };
     if (!FINNHUB_KEY) {
-        console.log('📡 [LiveQuotes] No FINNHUB_API_KEY set — equities stay on mock quotes. Get a free key at https://finnhub.io/register');
+        console.log('📡 [LiveQuotes] No FINNHUB_API_KEY set — equities run on a simulated tick, not a real feed. Get a free key at https://finnhub.io/register');
+        TRACKED_EQUITY_SYMBOLS.forEach(startEquityFallback);
         return;
     }
     console.log('📡 [LiveQuotes] FINNHUB_API_KEY found — fetching baseline quotes for held symbols...');
     const results = await Promise.all(TRACKED_EQUITY_SYMBOLS.map((s) => fetchPreviousCloseAndSeed(s)));
     results.forEach((pc, i) => {
-        if (pc)
-            previousClose.set(TRACKED_EQUITY_SYMBOLS[i], pc);
+        const symbol = TRACKED_EQUITY_SYMBOLS[i];
+        if (pc) {
+            previousClose.set(symbol, pc);
+        }
+        else {
+            // Finnhub failed for this one symbol (bad key, rate limit, delisted ticker, ...) — simulate
+            // it rather than leave it the only frozen row on an otherwise-live dashboard.
+            startEquityFallback(symbol);
+        }
     });
     const ok = results.filter(Boolean).length;
-    console.log(`📡 [LiveQuotes] ${ok}/${TRACKED_EQUITY_SYMBOLS.length} symbols seeded — connecting WebSocket for live ticks`);
+    console.log(`📡 [LiveQuotes] ${ok}/${TRACKED_EQUITY_SYMBOLS.length} symbols seeded from Finnhub — connecting WebSocket for live ticks`);
     connectFinnhubWebSocket();
 }
 //# sourceMappingURL=live-quotes.js.map
