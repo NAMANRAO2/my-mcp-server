@@ -1,4 +1,4 @@
-﻿# Portfolio Guardian
+﻿# BidWiserAI
 
 **A behavioural guard for retail investors, built as a NitroStack MCP server.**
 
@@ -6,18 +6,18 @@
 
 Retail investors have more market data than ever and nothing that **(a)** explains what is actually
 relevant to *their* portfolio right now, or **(b)** intervenes at the exact moment a bias is about
-to drive a bad decision. Portfolio Guardian does both — and it never recommends a trade.
+to drive a bad decision. BidWiserAI does both — and it never recommends a trade.
 
 ---
 
 ## The Two Layers
 
 **Layer A — Contextual Relevance Engine.** Most market news touches any given portfolio not at all.
-The Guardian scores every event against the user's actual holdings: which positions, what percentage
+BidWiserAI scores every event against the user's actual holdings: which positions, what percentage
 of their money, and — critically — whether the move is market-wide, sector-level, or genuinely
 specific to a company they own. That last distinction is what defuses most panic-sells.
 
-**Layer B — Behavioural Intervention Engine.** When the user states an intent to trade, the Guardian
+**Layer B — Behavioural Intervention Engine.** When the user states an intent to trade, BidWiserAI
 checks it against three bias patterns, then puts the context, the historical base rate, and one
 reflective question in front of them *before* they act. They stay free to proceed. Proceeding is a
 first-class button, not a grudging escape hatch.
@@ -28,7 +28,7 @@ first-class button, not a grudging escape hatch.
 
 This is the design constraint the whole project is built around — not a disclaimer bolted on at the end:
 
-| The Guardian does | The Guardian never does |
+| BidWiserAI does | BidWiserAI never does |
 | --- | --- |
 | Surfaces which holdings an event touches, and by how much | Says "buy", "sell", "hold", or "you should" |
 | Names the bias pattern detected and the phrases that triggered it | Blocks or executes a trade |
@@ -66,7 +66,7 @@ That is the deliberate part: a missed nudge costs one decision, a false nudge co
 
 ## Architecture
 
-![Portfolio Guardian Architecture](./docs/architecture.png)
+![BidWiserAI Architecture](./docs/architecture.png)
 
 ```
 my-mcp-server/
@@ -104,7 +104,13 @@ my-mcp-server/
 ├── frontend/
 │   └── index.html                         # Standalone single-file web demo (no build step)
 ├── docs/
-│   └── architecture.png                   # Architecture diagram
+│   ├── architecture.png                   # Architecture diagram
+│   └── NitroChat.png                      # NitroChat demo screenshot
+├── Images/
+│   ├── HomePage.png                       # Web app home page screenshot
+│   ├── DecisionAnalysis.png               # Decision analysis panel screenshot
+│   ├── MarketContext.png                  # Market context panel screenshot
+│   └── Execute.png                        # Paper trade execution screenshot
 ├── logs/
 │   └── portfolio-state.json               # Paper-trade state (gitignored, survives restart)
 ├── dist/                                  # Compiled MCP server output
@@ -153,7 +159,7 @@ relevance scoring and bias detection can be reasoned about — and tested — in
 | `guardian://trade-history` | User's own past decision history |
 | `guardian://wait-outcomes` | Cohort outcomes for wait periods |
 | `guardian://decision-log` | Live audit trail of all interventions |
-| `guardian://operating-rules` | Guardian compliance constraints |
+| `guardian://operating-rules` | BidWiserAI compliance constraints |
 
 ---
 
@@ -191,7 +197,29 @@ generate_reflection_prompt "You wrote down a reason for each of these when you b
 log_decision_context       DEC-0001 · full context + the user's choice
 ```
 
-Nowhere in that output does the agent say *don't sell*. It reports facts, a base rate, and a question.
+Nowhere in that output does BidWiserAI say *don't sell*. It reports facts, a base rate, and a question.
+
+---
+
+## NitroChat Demo
+
+BidWiserAI integrates directly into NitroStudio's AI Chat. Load the `portfolio_guardian_system`
+prompt and interact with the agent — it will reason over your holdings, detect bias patterns, and
+surface reflective interventions entirely through tool calls, with no hard-coded script.
+
+![NitroChat Demo](./docs/NitroChat.png)
+
+---
+
+## App Screenshots
+
+| Home Page | Market Context |
+|---|---|
+| ![Home Page](./Images/HomePage.png) | ![Market Context](./Images/MarketContext.png) |
+
+| Decision Analysis | Execute Trade |
+|---|---|
+| ![Decision Analysis](./Images/DecisionAnalysis.png) | ![Execute Trade](./Images/Execute.png) |
 
 ---
 
@@ -233,8 +261,8 @@ through the web app is visible in NitroStudio too.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/portfolio-guardian.git
-cd portfolio-guardian
+git clone https://github.com/NAMANRAO2/my-mcp-server.git
+cd my-mcp-server
 
 # 2. Install dependencies
 npm install
@@ -279,7 +307,7 @@ npm run start:prod   # Production mode (dual stdio + HTTP transport)
 
 > "Market is crashing, sell all my tech stocks now"
 
-`panic_sell`, confidence **0.92**, action **intervene**. The Guardian establishes that 39.2% of the
+`panic_sell`, confidence **0.92**, action **intervene**. BidWiserAI establishes that 39.2% of the
 portfolio is exposed but the driver is *sector-level* — healthcare and staples are up on the same
 day, so this is rotation rather than every asset falling at once. It quotes the user's own thesis
 back at them and asks whether the reason changed or only the price.
@@ -288,7 +316,7 @@ back at them and asks whether the reason changed or only the price.
 
 > "Everyone's buying QBITX, it's up 180% this month — I want in now before it's too late"
 
-`fomo_buy`, confidence **0.90**, action **intervene**. The Guardian does not dismiss an unheld stock
+`fomo_buy`, confidence **0.90**, action **intervene**. BidWiserAI does not dismiss an unheld stock
 as noise — it names the flags attached to the data (crowded trade, no earnings history, high
 volatility), gives the base rate for late entries, includes the case where a crowded run-up kept
 going, and asks: *"If this had gone sideways for three months instead, would you still want to own it?"*
