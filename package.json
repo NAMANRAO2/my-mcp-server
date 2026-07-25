@@ -1,12 +1,13 @@
 {
-  "name": "my-mcp-server",
+  "name": "portfolio-guardian",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "AI Hackathon MCP Server",
+  "description": "Portfolio Guardian — a behavioural guard and contextual explainer for retail investors. Informs and reflects; never recommends.",
   "scripts": {
     "dev": "nitrostack-cli dev",
     "build": "nitrostack-cli build",
+    "postbuild": "node -e \"require('fs').cpSync('src/data','dist/data',{recursive:true})\"",
     "start": "npm run build && nitrostack-cli start",
     "start:prod": "nitrostack-cli start",
     "upgrade": "nitrostack-cli upgrade",

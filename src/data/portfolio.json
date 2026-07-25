@@ -1,0 +1,80 @@
+{
+  "_note": "Mock data for demonstration only. Not a real portfolio, not real prices.",
+  "user_id": "U1",
+  "currency": "USD",
+  "as_of": "2026-07-25",
+  "profile": {
+    "display_name": "Demo Investor",
+    "experience": "first_time",
+    "started_investing": "2024-11-01",
+    "stated_horizon_years": 8,
+    "stated_goal": "Long-term wealth building. Not trading. Money not needed for at least 5 years.",
+    "monthly_contribution": 500
+  },
+  "cash": 4200,
+  "holdings": [
+    {
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "sector": "tech",
+      "quantity": 12,
+      "avg_price": 214.5,
+      "purchase_date": "2025-03-14",
+      "thesis": "Wanted one large, cash-rich company I actually understand as the anchor of the portfolio."
+    },
+    {
+      "symbol": "MSFT",
+      "name": "Microsoft Corp.",
+      "sector": "tech",
+      "quantity": 8,
+      "avg_price": 402.8,
+      "purchase_date": "2025-01-22",
+      "thesis": "Enterprise software and cloud revenue looked steady and recurring."
+    },
+    {
+      "symbol": "NVDA",
+      "name": "NVIDIA Corp.",
+      "sector": "tech",
+      "quantity": 25,
+      "avg_price": 121.4,
+      "purchase_date": "2025-06-05",
+      "thesis": "Wanted exposure to AI infrastructure. Knew going in this one would be volatile."
+    },
+    {
+      "symbol": "JNJ",
+      "name": "Johnson & Johnson",
+      "sector": "healthcare",
+      "quantity": 20,
+      "avg_price": 158.2,
+      "purchase_date": "2024-11-08",
+      "thesis": "Defensive ballast and a dividend, to offset the tech weighting."
+    },
+    {
+      "symbol": "PG",
+      "name": "Procter & Gamble",
+      "sector": "consumer_staples",
+      "quantity": 15,
+      "avg_price": 165.3,
+      "purchase_date": "2024-09-19",
+      "thesis": "Boring on purpose. Products people buy in any economy."
+    },
+    {
+      "symbol": "XOM",
+      "name": "Exxon Mobil",
+      "sector": "energy",
+      "quantity": 18,
+      "avg_price": 112.75,
+      "purchase_date": "2025-02-27",
+      "thesis": "Energy exposure as a partial inflation hedge."
+    },
+    {
+      "symbol": "VOO",
+      "name": "Vanguard S&P 500 ETF",
+      "sector": "broad_etf",
+      "quantity": 6,
+      "avg_price": 512.6,
+      "purchase_date": "2025-05-16",
+      "thesis": "The default, do-nothing core of the portfolio. Monthly contributions go here."
+    }
+  ]
+}

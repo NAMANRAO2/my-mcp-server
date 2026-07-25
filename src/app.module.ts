@@ -1,17 +1,17 @@
 import { McpApp, Module, ConfigModule } from '@nitrostack/core';
-import { CalculatorModule } from './modules/calculator/calculator.module.js';
+import { GuardianModule } from './modules/guardian/guardian.module.js';
 import { SystemHealthCheck } from './health/system.health.js';
 
 /**
- * Root Application Module
- * 
- * This is the main module that bootstraps the MCP server.
- * It registers all feature modules and health checks.
+ * Portfolio Guardian — root application module.
+ *
+ * A behavioural guard for retail investors. The server surfaces context, patterns and history;
+ * it never recommends a trade. See IDEA.md for the locked scope and the compliance boundary.
  */
 @McpApp({
   module: AppModule,
   server: {
-    name: 'calculator-server',
+    name: 'portfolio-guardian',
     version: '1.0.0'
   },
   logging: {
@@ -20,15 +20,13 @@ import { SystemHealthCheck } from './health/system.health.js';
 })
 @Module({
   name: 'app',
-  description: 'Root application module',
+  description: 'Portfolio Guardian root module',
   imports: [
     ConfigModule.forRoot(),
-    CalculatorModule
+    GuardianModule
   ],
   providers: [
-    // Health Checks
-    SystemHealthCheck,
+    SystemHealthCheck
   ]
 })
 export class AppModule {}
-
