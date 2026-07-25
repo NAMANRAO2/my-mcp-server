@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Portfolio Guardian — Behavioural Bias Protection MCP Server",
+  "description": "BidWiserAI — Behavioural Bias Protection MCP Server",
   "scripts": {
     "dev":           "nitrostack-cli dev",
     "build":         "nitrostack-cli build",
