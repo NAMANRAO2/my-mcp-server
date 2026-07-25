@@ -12,6 +12,7 @@
     "install:all":   "nitrostack-cli install",
     "widget":        "npm --prefix src/widgets",
 
+    "test":          "npx tsx scripts/run-all-tests.ts",
     "build:backend": "tsc --project tsconfig.backend.json",
     "prestart":      "npm run build:backend",
     "start":         "node dist-backend/api.js",
