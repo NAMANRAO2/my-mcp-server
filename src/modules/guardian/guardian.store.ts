@@ -235,6 +235,54 @@ export const DATA_DISCLAIMER =
   'All portfolio, price and historical figures in this server are fabricated mock data for demonstration. Nothing here is investment advice.';
 
 // ---------------------------------------------------------------------------
+// Live data overlay (shared with the Express backend via logs/*.json)
+// ---------------------------------------------------------------------------
+
+const LIVE_QUOTES_PATH = path.join(process.cwd(), 'logs', 'live-quotes.json');
+const PORTFOLIO_STATE_PATH = path.join(process.cwd(), 'logs', 'portfolio-state.json');
+
+export interface LiveQuoteOverride {
+  symbol: string;
+  price: number;
+  day_change_pct: number;
+  mode: 'live' | 'simulated' | 'mock' | 'error';
+  updated_at: string;
+}
+
+/**
+ * Reads the live-quotes snapshot that the Express backend (src/backend/live-quotes.ts)
+ * continuously writes to disk. The MCP server has no long-lived process of its own to hold a
+ * Finnhub WebSocket connection open between tool calls, so it reads the latest known tick from
+ * the shared file instead of running a second, duplicate connection. Not memoized — this must
+ * re-read on every call since the file changes every couple of seconds.
+ */
+export function getLiveQuoteOverride(symbol: string): LiveQuoteOverride | null {
+  try {
+    if (!fs.existsSync(LIVE_QUOTES_PATH)) return null;
+    const all: LiveQuoteOverride[] = JSON.parse(fs.readFileSync(LIVE_QUOTES_PATH, 'utf-8'));
+    return all.find((q) => q.symbol === symbol.toUpperCase()) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reads the mutable portfolio overlay the Express backend's trade execution endpoint maintains
+ * (src/backend/portfolio-state.ts), so a trade made through the web app shows up here too. Returns
+ * null if no trade has ever been executed — callers fall back to the static portfolio.json holdings
+ * and cash in that case, which is the original, pre-trading behaviour.
+ */
+export function getPortfolioStateOverride(): { cash: number; holdings: Holding[] } | null {
+  try {
+    if (!fs.existsSync(PORTFOLIO_STATE_PATH)) return null;
+    const state = JSON.parse(fs.readFileSync(PORTFOLIO_STATE_PATH, 'utf-8'));
+    return { cash: state.cash, holdings: state.holdings };
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Decision log (mutable)
 // ---------------------------------------------------------------------------
 

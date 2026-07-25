@@ -115,9 +115,12 @@ a plain-language relevance explainer
 
 ## 7. Out of scope
 
-Real market data feeds · real brokerage / order execution · portfolio sync · multi-user auth ·
-rebalancing or allocation advice · risk/suitability scoring · backtesting · more than three bias
-patterns · anything that produces a buy/sell recommendation.
+Real brokerage / order execution · portfolio sync · multi-user auth · rebalancing or allocation
+advice · risk/suitability scoring · backtesting · more than three bias patterns · anything that
+produces a buy/sell recommendation.
+
+Real market data was originally on this list too. §9 covers why the standalone web app now has an
+optional live-data path — the MCP tool set described in §6 is unaffected and stays on mock data.
 
 All figures are **fabricated mock data** for demonstration. The historical patterns are modelled on
 real episodes (2020 crash, 2022 rate-hike selloff, 2021 meme-stock run) but the numbers are
@@ -148,15 +151,45 @@ large-cap swing trades alongside one option position is realistic and required n
 logic. The two-persona alternative (a wholly separate F&O trader demo, run alongside the existing
 long-term one) was considered and explicitly rejected in favour of this single, consistent persona.
 
-## 9. Done means
+## 9. Scope decision: live data and paper trading
 
-- [x] Tools registered and individually testable in NitroStudio — 8 tools, 7 resources, 3 prompts
+The standalone web app (`src/backend`, `frontend/` — separate from the NitroStack MCP tool set in
+§6) gained an optional live-data path and a paper-trading feature. Neither changes the compliance
+boundary in §2: nothing here recommends a trade, and nothing connects to a real brokerage.
+
+**Live prices, scoped to what's held.** `src/backend/live-quotes.ts` streams real quotes from
+Finnhub for the seven equity/ETF holdings via WebSocket, not a general "any ticker" lookup —
+deliberately narrow, matching the instruction that drove this: take the portfolio's own data live,
+don't build a market-data platform. No `FINNHUB_API_KEY` configured means everything runs on the
+original mock quotes, with the mode visible in the dashboard's badge and every tool's
+`quote_mode` field — a missing key degrades, it never fails or fakes data.
+
+**NIFTYCE stays simulated on principle, not by oversight.** There is no free, unauthenticated API
+for real-time Indian F&O data — genuine access needs a paid subscription tied to a broker account
+(Kite Connect, Upstox). Rather than silently leaving it static while everything else went live, it
+gets an explicit local random-walk generator, labelled `simulated` everywhere the value surfaces.
+
+**Trading is paper-only, and restricted to existing holdings.** `POST /api/execute-trade` mutates
+the demo portfolio's holdings and cash using the current price — nothing else exists to interpret
+free-text intent ("sell all my tech") as a specific quantity, so execution is a deliberate,
+separate action, not something "Proceed anyway" triggers implicitly. Buying or selling a symbol
+outside the current holdings is rejected: there's no price source for it, and extending the
+tradeable universe was explicitly ruled out ("don't add all stocks"). State persists to
+`logs/portfolio-state.json` using the same rehydrate-on-boot pattern as the decision log, and the
+MCP server reads that same file — a trade made through the web app is visible in NitroStudio too.
+
+## 10. Done means
+
+- [x] Tools registered and individually testable in NitroStudio — 11 tools, 10 resources, 3 prompts
 - [x] All three patterns detected from natural language, with the trade-intent gate holding
 - [x] A neutral query produces **no** intervention
 - [x] Relevance engine distinguishes broad moves from company-specific news
 - [x] Reflection prose contains zero directive language (verified by a lint list of banned phrases)
 - [x] Every decision logged with the full context that was shown
 - [x] Dashboard + intervention widgets build and bind to their tools
+- [x] Decision log and portfolio state survive a server restart (rehydrate from disk on boot)
+- [x] Live quotes degrade gracefully with no API key; NIFTYCE ticks are clearly labelled simulated
+- [x] Paper trades persist and are visible identically from the REST API and the MCP server
 - [ ] Widgets eyeballed in NitroStudio against live tool output (light + dark)
 - [ ] Deployed to NitroCloud
 - [ ] 3-minute demo recorded

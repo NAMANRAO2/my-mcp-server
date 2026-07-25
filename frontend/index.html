@@ -268,7 +268,7 @@
       </div>
     </div>
     <div class="header-right">
-      <span class="badge">● LIVE</span>
+      <span class="badge" id="live-badge" title="Real-time data connection status">● connecting…</span>
     </div>
   </header>
 
@@ -304,7 +304,7 @@
             </div>
             <table>
               <thead>
-                <tr><th>Symbol</th><th>Value</th><th>Day Δ</th><th>P&L</th><th>Weight</th></tr>
+                <tr><th>Symbol</th><th>Quote</th><th>Value</th><th>Day Δ</th><th>P&L</th><th>Weight</th><th></th></tr>
               </thead>
               <tbody id="holdings-tbody"></tbody>
             </table>
@@ -331,6 +331,36 @@
               <div id="profile-info" style="font-size:13px;line-height:1.8;"></div>
             </div>
           </div>
+        </div>
+
+        <!-- Paper trading — mutates the demo portfolio only, no real brokerage -->
+        <div class="card" style="margin-top:20px;">
+          <div class="card-header">
+            <span class="card-icon">💼</span>
+            <div>
+              <div class="card-title">Execute Trade</div>
+              <div class="card-subtitle">Paper trading — updates this demo portfolio only, no real orders are placed</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+            <div>
+              <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">SYMBOL</label>
+              <select id="trade-symbol" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);min-width:140px;"></select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">SIDE</label>
+              <select id="trade-side" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);">
+                <option value="sell">Sell</option>
+                <option value="buy">Buy</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">QUANTITY</label>
+              <input id="trade-qty" type="number" min="1" step="1" value="1" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);width:100px;" />
+            </div>
+            <button class="btn btn-primary" onclick="submitTrade()" id="trade-btn" style="padding:9px 20px;">Execute</button>
+          </div>
+          <div id="trade-result" style="margin-top:12px;font-size:13px;"></div>
         </div>
       </div>
     </div>
@@ -455,6 +485,67 @@ function fmt(n, prefix='$') { return prefix + n.toLocaleString('en-US', { minimu
 function fmtPct(n) { return (n > 0 ? '+' : '') + n.toFixed(2) + '%'; }
 function colorPct(n) { return n >= 0 ? 'pos' : 'neg'; }
 
+// ─── Live data — WebSocket ──────────────────────────────────────────────────────
+// Ticks arrive every ~2s (faster for a busy stock once a real Finnhub key is live). Rather than
+// duplicate the backend's valuation math in the browser, a tick just schedules a debounced
+// refetch of /api/portfolio — real-time enough to feel alive, without a network round trip per tick
+// or two competing implementations of the same P&L arithmetic that could quietly drift apart.
+let refreshTimer = null;
+function scheduleRefresh(delay = 1500) {
+  if (refreshTimer) return;
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    if (document.getElementById('panel-dashboard').classList.contains('active')) loadDashboard();
+  }, delay);
+}
+
+const QUOTE_BADGE = {
+  live:      { label: '● LIVE',      style: 'color:var(--green);' },
+  simulated: { label: '◐ SIMULATED', style: 'color:var(--amber);' },
+  mock:      { label: '○ MOCK',      style: 'color:var(--muted);' }
+};
+
+function connectLiveFeed() {
+  const badge = document.getElementById('live-badge');
+  let ws;
+  try {
+    ws = new WebSocket(API.replace('http', 'ws') + '/ws/live');
+  } catch (e) {
+    badge.textContent = '○ offline';
+    return;
+  }
+
+  // onopen defers to loadLiveStatus() for the actual badge text (live/mock/degraded) rather than
+  // writing its own "connected" — otherwise whichever of the WS handshake or the status fetch
+  // resolves last silently overwrites the other's more informative text.
+  ws.onopen = () => { loadLiveStatus(); };
+  ws.onclose = () => { badge.textContent = '○ reconnecting…'; setTimeout(connectLiveFeed, 3000); };
+  ws.onerror = () => {};
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'snapshot' || msg.type === 'quote') {
+        const q = msg.type === 'quote' ? msg.quote : (msg.quotes || [])[0];
+        if (q && q.symbol === '__portfolio_updated__') {
+          scheduleRefresh(0); // a trade executed — quantities/cash changed, refresh right away
+        } else {
+          scheduleRefresh();
+        }
+      }
+    } catch { /* ignore malformed frame */ }
+  };
+}
+
+async function loadLiveStatus() {
+  try {
+    const res = await apiFetch('/api/live-status');
+    if (!res.success) return;
+    const modeLabel = { live: '● LIVE', mock: '○ MOCK DATA', degraded: '△ DEGRADED' }[res.data.overall_mode] || res.data.overall_mode;
+    document.getElementById('live-badge').textContent = modeLabel;
+  } catch { /* keep whatever the WS connection state already shows */ }
+}
+
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 async function loadDashboard() {
   try {
@@ -483,15 +574,26 @@ async function loadDashboard() {
     `;
 
     // Holdings table
-    document.getElementById('holdings-tbody').innerHTML = d.holdings.map(h => `
+    document.getElementById('holdings-tbody').innerHTML = d.holdings.map(h => {
+      const badge = QUOTE_BADGE[h.quote_mode] || QUOTE_BADGE.mock;
+      return `
       <tr>
         <td><span class="symbol">${h.symbol}</span><br/><span style="font-size:11px;color:var(--muted)">${h.name}</span></td>
+        <td><span style="font-size:11px;font-weight:600;${badge.style}">${badge.label}</span></td>
         <td>${fmt(h.market_value)}</td>
         <td class="${colorPct(h.day_change_pct)}">${fmtPct(h.day_change_pct)}</td>
         <td class="${colorPct(h.unrealized_gain)}">${fmt(h.unrealized_gain)}</td>
         <td>${(h.weight_of_total * 100).toFixed(1)}%</td>
+        <td><button class="btn btn-outline" style="padding:4px 10px;font-size:11px;" onclick="document.getElementById('trade-symbol').value='${h.symbol}'">Trade</button></td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
+
+    // Trade symbol dropdown — only symbols actually held, since only those have a live/simulated price
+    const tradeSelect = document.getElementById('trade-symbol');
+    const previousSelection = tradeSelect.value;
+    tradeSelect.innerHTML = d.holdings.map(h => `<option value="${h.symbol}">${h.symbol} — ${h.quantity} held</option>`).join('');
+    if (d.holdings.some(h => h.symbol === previousSelection)) tradeSelect.value = previousSelection;
 
     // Sector bars
     const maxSector = Math.max(...d.sector_breakdown.map(s => s.market_value));
@@ -797,8 +899,45 @@ async function loadLog() {
   }
 }
 
+// ─── EXECUTE TRADE ────────────────────────────────────────────────────────────
+// Paper trading only — mutates the demo portfolio via the backend's in-memory + persisted state.
+// No brokerage connection, no real order, no real money at any point in this path.
+async function submitTrade() {
+  const symbol = document.getElementById('trade-symbol').value;
+  const side = document.getElementById('trade-side').value;
+  const quantity = Number(document.getElementById('trade-qty').value);
+  const btn = document.getElementById('trade-btn');
+  const resultEl = document.getElementById('trade-result');
+
+  if (!symbol || !quantity || quantity <= 0) {
+    resultEl.innerHTML = `<span style="color:var(--red)">Enter a symbol and a positive quantity.</span>`;
+    return;
+  }
+
+  btn.disabled = true;
+  resultEl.textContent = 'Executing…';
+
+  try {
+    const res = await apiFetch('/api/execute-trade', {
+      method: 'POST',
+      body: JSON.stringify({ symbol, side, quantity })
+    });
+    if (!res.success) throw new Error(res.error);
+
+    const t = res.data.trade;
+    resultEl.innerHTML = `<span style="color:var(--green)">✅ ${t.side.toUpperCase()} ${t.quantity} ${t.symbol} @ ${fmt(t.price)} (${t.price_mode}) — cash now ${fmt(t.cash_after)}</span>`;
+    loadDashboard();
+  } catch (e) {
+    resultEl.innerHTML = `<span style="color:var(--red)">❌ ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 loadDashboard();
+loadLiveStatus();
+connectLiveFeed();
 </script>
 </body>
 </html>

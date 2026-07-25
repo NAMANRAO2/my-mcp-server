@@ -19,8 +19,10 @@ import {
   WaitOutcome,
   getBiasDictionary,
   getHerdSentiment,
+  getLiveQuoteOverride,
   getMarketData,
   getPortfolio,
+  getPortfolioStateOverride,
   getTradeHistory,
   getWaitOutcomes,
   readDecisionLog
@@ -36,6 +38,7 @@ const pct = (fraction: number, dp = 1) => `${(fraction * 100).toFixed(dp)}%`;
 export interface ValuedHolding extends Holding {
   current_price: number;
   day_change_pct: number;
+  quote_mode: 'live' | 'simulated' | 'mock';
   market_value: number;
   cost_basis: number;
   unrealized_gain: number;
@@ -61,36 +64,50 @@ export interface PortfolioSnapshot {
     day_change_value: number;
     day_change_pct: number;
   };
-  largest_position: { symbol: string; weight_of_total: number };
+  largest_position: { symbol: string; weight_of_total: number } | null;
   concentration_note: string;
 }
 
 export function valuePortfolio(): PortfolioSnapshot {
-  const portfolio = getPortfolio();
+  const portfolio = getPortfolio(); // static: profile, currency, as_of, user_id — never mutated by trades
+  const override = getPortfolioStateOverride(); // mutable: moves when a trade is executed via the web app
+  const currentHoldings = override?.holdings ?? portfolio.holdings;
+  const currentCash = override?.cash ?? portfolio.cash;
   const { quotes } = getMarketData();
 
-  const priced = portfolio.holdings.map((h) => {
-    const quote: Quote | undefined = quotes[h.symbol];
-    const price = quote?.price ?? h.avg_price;
+  const priced = currentHoldings.map((h) => {
+    const mock: Quote | undefined = quotes[h.symbol];
+    const live = getLiveQuoteOverride(h.symbol);
+    const useLive = live && (live.mode === 'live' || live.mode === 'simulated');
+    const price = useLive ? live!.price : (mock?.price ?? h.avg_price);
+    const dayChange = useLive ? live!.day_change_pct : (mock?.day_change_pct ?? 0);
     const marketValue = price * h.quantity;
     const costBasis = h.avg_price * h.quantity;
-    return { holding: h, price, dayChange: quote?.day_change_pct ?? 0, marketValue, costBasis };
+    return {
+      holding: h,
+      price,
+      dayChange,
+      quoteMode: (useLive ? live!.mode : 'mock') as 'live' | 'simulated' | 'mock',
+      marketValue,
+      costBasis
+    };
   });
 
   const investedValue = priced.reduce((sum, p) => sum + p.marketValue, 0);
-  const totalValue = investedValue + portfolio.cash;
+  const totalValue = investedValue + currentCash;
   const totalCostBasis = priced.reduce((sum, p) => sum + p.costBasis, 0);
 
-  const holdings: ValuedHolding[] = priced.map(({ holding, price, dayChange, marketValue, costBasis }) => ({
+  const holdings: ValuedHolding[] = priced.map(({ holding, price, dayChange, quoteMode, marketValue, costBasis }) => ({
     ...holding,
     current_price: price,
     day_change_pct: dayChange,
+    quote_mode: quoteMode,
     market_value: round(marketValue),
     cost_basis: round(costBasis),
     unrealized_gain: round(marketValue - costBasis),
-    unrealized_gain_pct: round(((marketValue - costBasis) / costBasis) * 100),
-    weight_of_total: round(marketValue / totalValue, 4),
-    weight_of_invested: round(marketValue / investedValue, 4)
+    unrealized_gain_pct: costBasis ? round(((marketValue - costBasis) / costBasis) * 100) : 0,
+    weight_of_total: totalValue ? round(marketValue / totalValue, 4) : 0,
+    weight_of_invested: investedValue ? round(marketValue / investedValue, 4) : 0
   }));
 
   const bySector = new Map<string, ValuedHolding[]>();
@@ -115,8 +132,12 @@ export function valuePortfolio(): PortfolioSnapshot {
   );
   const dayChangeValue = investedValue - previousInvested;
 
-  const largest = holdings.reduce((a, b) => (b.weight_of_total > a.weight_of_total ? b : a));
-  const topSector = sectorBreakdown[0];
+  // Trading can now genuinely empty the portfolio out (sell every position), so this can't assume
+  // at least one holding exists the way it safely could when holdings were a static fixture.
+  const largest = holdings.length
+    ? holdings.reduce((a, b) => (b.weight_of_total > a.weight_of_total ? b : a))
+    : null;
+  const topSector = sectorBreakdown[0] as (typeof sectorBreakdown)[number] | undefined;
 
   return {
     user_id: portfolio.user_id,
@@ -127,16 +148,18 @@ export function valuePortfolio(): PortfolioSnapshot {
     sector_breakdown: sectorBreakdown,
     totals: {
       invested_value: round(investedValue),
-      cash: portfolio.cash,
+      cash: currentCash,
       total_value: round(totalValue),
       total_cost_basis: round(totalCostBasis),
       unrealized_gain: round(investedValue - totalCostBasis),
-      unrealized_gain_pct: round(((investedValue - totalCostBasis) / totalCostBasis) * 100),
+      unrealized_gain_pct: totalCostBasis ? round(((investedValue - totalCostBasis) / totalCostBasis) * 100) : 0,
       day_change_value: round(dayChangeValue),
-      day_change_pct: round((dayChangeValue / previousInvested) * 100)
+      day_change_pct: previousInvested ? round((dayChangeValue / previousInvested) * 100) : 0
     },
-    largest_position: { symbol: largest.symbol, weight_of_total: largest.weight_of_total },
-    concentration_note: `${topSector.sector} is the largest sector at ${pct(topSector.weight_of_total)} of total value (${topSector.symbols.join(', ')}).`
+    largest_position: largest ? { symbol: largest.symbol, weight_of_total: largest.weight_of_total } : null,
+    concentration_note: topSector
+      ? `${topSector.sector} is the largest sector at ${pct(topSector.weight_of_total)} of total value (${topSector.symbols.join(', ')}).`
+      : 'This account is currently all cash — every position has been sold.'
   };
 }
 

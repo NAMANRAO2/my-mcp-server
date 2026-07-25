@@ -9,6 +9,9 @@ import dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { WebSocketServer } from 'ws';
+import { initLiveQuotes, resolveQuote, getLiveStatus, getAllLiveQuotes, liveEvents } from './live-quotes.js';
+import { initPortfolioState, getPortfolioState, executeTrade } from './portfolio-state.js';
 dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /**
@@ -95,22 +98,24 @@ function appendDecision(entry) {
 }
 // ─── portfolio valuation ──────────────────────────────────────────────────────
 function valuePortfolio() {
-    const portfolio = getPortfolio();
+    const portfolio = getPortfolio(); // static: profile, currency, as_of, user_id — never mutated by trades
+    const { holdings: currentHoldings, cash: currentCash } = getPortfolioState(); // mutable: moves with trades
     const { quotes } = getMarketData();
-    const priced = portfolio.holdings.map((h) => {
-        const q = quotes[h.symbol] ?? {};
-        const price = q.price ?? h.avg_price;
-        const mv = price * h.quantity;
+    const priced = currentHoldings.map((h) => {
+        const mock = quotes[h.symbol] ?? {};
+        const resolved = resolveQuote(h.symbol, mock.price ?? h.avg_price, mock.day_change_pct ?? 0);
+        const mv = resolved.price * h.quantity;
         const cb = h.avg_price * h.quantity;
-        return { h, price, day: q.day_change_pct ?? 0, mv, cb };
+        return { h, price: resolved.price, day: resolved.day_change_pct, quote_mode: resolved.mode, mv, cb };
     });
     const invested = priced.reduce((s, p) => s + p.mv, 0);
-    const total = invested + portfolio.cash;
+    const total = invested + currentCash;
     const totalCb = priced.reduce((s, p) => s + p.cb, 0);
-    const holdings = priced.map(({ h, price, day, mv, cb }) => ({
+    const holdings = priced.map(({ h, price, day, quote_mode, mv, cb }) => ({
         ...h,
         current_price: +price.toFixed(2),
         day_change_pct: day,
+        quote_mode,
         market_value: +mv.toFixed(2),
         cost_basis: +cb.toFixed(2),
         unrealized_gain: +(mv - cb).toFixed(2),
@@ -131,7 +136,11 @@ function valuePortfolio() {
         .sort((a, b) => b.market_value - a.market_value);
     const prevInvested = priced.reduce((s, p) => s + p.mv / (1 + p.day / 100), 0);
     const dayChangeValue = invested - prevInvested;
-    const largest = holdings.reduce((a, b) => (b.weight_of_total > a.weight_of_total ? b : a));
+    // Trading can now genuinely empty the portfolio out (sell every position), so this can't assume
+    // at least one holding exists the way it safely could when holdings were a static fixture.
+    const largest = holdings.length
+        ? holdings.reduce((a, b) => (b.weight_of_total > a.weight_of_total ? b : a))
+        : null;
     return {
         user_id: portfolio.user_id,
         currency: portfolio.currency,
@@ -141,15 +150,15 @@ function valuePortfolio() {
         sector_breakdown,
         totals: {
             invested_value: +invested.toFixed(2),
-            cash: portfolio.cash,
+            cash: currentCash,
             total_value: +total.toFixed(2),
             total_cost_basis: +totalCb.toFixed(2),
             unrealized_gain: +(invested - totalCb).toFixed(2),
-            unrealized_gain_pct: +(((invested - totalCb) / totalCb) * 100).toFixed(2),
+            unrealized_gain_pct: totalCb ? +(((invested - totalCb) / totalCb) * 100).toFixed(2) : 0,
             day_change_value: +dayChangeValue.toFixed(2),
-            day_change_pct: +((dayChangeValue / prevInvested) * 100).toFixed(2)
+            day_change_pct: prevInvested ? +((dayChangeValue / prevInvested) * 100).toFixed(2) : 0
         },
-        largest_position: { symbol: largest.symbol, weight_of_total: largest.weight_of_total }
+        largest_position: largest ? { symbol: largest.symbol, weight_of_total: largest.weight_of_total } : null
     };
 }
 // ─── relevance scoring ────────────────────────────────────────────────────────
@@ -541,6 +550,40 @@ app.post('/api/analyze-intent', async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
+// ── POST /api/execute-trade ────────────────────────────────────────────────────
+// Paper trading only — no brokerage, no order routing, no real money. Restricted to symbols
+// already in the portfolio, since those are the only ones with a live or simulated price feed.
+app.post('/api/execute-trade', (req, res) => {
+    try {
+        const { symbol, side, quantity } = req.body;
+        if (!symbol || (side !== 'buy' && side !== 'sell') || !quantity) {
+            return res.status(400).json({ success: false, error: 'symbol, side ("buy"|"sell") and quantity are required' });
+        }
+        const mock = getMarketData().quotes[symbol.toUpperCase()] ?? {};
+        const resolved = resolveQuote(symbol.toUpperCase(), mock.price, mock.day_change_pct ?? 0);
+        if (!resolved.price) {
+            return res.status(400).json({ success: false, error: `No price available for ${symbol}.` });
+        }
+        const result = executeTrade({
+            symbol,
+            side,
+            quantity: Number(quantity),
+            price: resolved.price,
+            price_mode: resolved.mode
+        });
+        if (!result.ok) {
+            return res.status(400).json({ success: false, error: result.error });
+        }
+        console.log(`💼 [API] Executed ${side.toUpperCase()} ${quantity} ${symbol.toUpperCase()} @ ${resolved.price} (${resolved.mode})`);
+        // Let any connected browser know the portfolio changed, so it can refetch rather than poll.
+        liveEvents.emit('tick', { symbol: '__portfolio_updated__', price: 0, day_change_pct: 0, mode: 'mock', updated_at: new Date().toISOString() });
+        res.json({ success: true, data: { trade: result.trade, portfolio: valuePortfolio() } });
+    }
+    catch (err) {
+        console.error('❌ Execute trade error:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
 // ── POST /api/log-decision ────────────────────────────────────────────────────
 app.post('/api/log-decision', (req, res) => {
     try {
@@ -636,12 +679,17 @@ app.get('/api/herd-sentiment', (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
+// ── GET /api/live-status ───────────────────────────────────────────────────────
+app.get('/api/live-status', (_req, res) => {
+    res.json({ success: true, data: getLiveStatus() });
+});
 // ── GET /api/health ───────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 // ─── Start ────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+initPortfolioState({ cash: getPortfolio().cash, holdings: getPortfolio().holdings });
+const httpServer = app.listen(PORT, () => {
     console.log(`
 ╔══════════════════════════════════════════════════════╗
 ║        🛡️  Portfolio Guardian — Backend API          ║
@@ -657,10 +705,28 @@ app.listen(PORT, () => {
   GET    /api/trade-history      ?pattern=panic_sell
   GET    /api/simulate-wait      ?event_type=broad_dip&wait=24 hours
   GET    /api/herd-sentiment     ?symbols=NVDA,QBITX
+  GET    /api/live-status
+  POST   /api/execute-trade
+  WS     /ws/live                (real-time quote ticks)
   GET    /api/health
 
 ✅ Behavioral bias detection: READY (no external AI key needed)
 ✅ Mock data directory: ${DATA_DIR}
 `);
+});
+// ─── Live quote broadcast — WebSocket for the browser ──────────────────────────
+const wss = new WebSocketServer({ server: httpServer, path: '/ws/live' });
+wss.on('connection', (socket) => {
+    socket.send(JSON.stringify({ type: 'snapshot', quotes: getAllLiveQuotes() }));
+});
+liveEvents.on('tick', (quote) => {
+    const payload = JSON.stringify({ type: 'quote', quote });
+    wss.clients.forEach((client) => {
+        if (client.readyState === client.OPEN)
+            client.send(payload);
+    });
+});
+initLiveQuotes(getMarketData().quotes.NIFTYCE).catch((err) => {
+    console.error('❌ [LiveQuotes] Failed to initialise:', err.message);
 });
 //# sourceMappingURL=api.js.map

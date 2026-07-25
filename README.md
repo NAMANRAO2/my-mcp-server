@@ -144,6 +144,34 @@ Nowhere in that output does the agent say *don't sell*. It reports facts, a base
 
 ---
 
+## Real-time data and paper trading
+
+The standalone web app (`src/backend` + `frontend/`) can run on live market data instead of the
+static mock quotes, and lets you execute trades against the demo portfolio itself.
+
+**Live prices.** `src/backend/live-quotes.ts` opens a WebSocket to [Finnhub](https://finnhub.io)
+for the portfolio's equity/ETF holdings (AAPL, MSFT, NVDA, JNJ, PG, XOM, VOO) and rebroadcasts
+ticks to the browser over its own WebSocket at `/ws/live`. Deliberately scoped to the symbols
+actually held, not a general market-data platform. Set `FINNHUB_API_KEY` in `.env` (free, no card,
+at [finnhub.io/register](https://finnhub.io/register)) — without it, everything falls back to the
+static mock quotes and says so, both in the server log and the dashboard's status badge.
+
+**NIFTYCE is simulated, not real.** Genuine real-time Indian F&O (NSE options) data needs a paid,
+broker-linked feed (Kite Connect, Upstox, etc.) — there is no free equivalent to Finnhub for
+Indian derivatives. So NIFTYCE gets a local random-walk generator instead, clearly labelled
+`simulated` everywhere it appears (API responses, the dashboard's quote badge). It behaves like a
+live feed for demo purposes; it is not connected to any real market.
+
+**Paper trading only.** The dashboard's Execute Trade panel calls `POST /api/execute-trade`,
+which adjusts the demo portfolio's holdings and cash using the current live/mock price — a
+weighted average price on a buy, proceeds credited to cash on a sell. Restricted to symbols
+already in the portfolio, since those are the only ones with a price source at all. **This never
+touches a real brokerage** — there is no order routing, no account link, no real money anywhere in
+this path. The mutated state persists to `logs/portfolio-state.json` (gitignored) and survives a
+restart, the same rehydrate-on-boot pattern used for the decision log. The MCP server reads the
+same file, so a trade made through the web app is visible in NitroStudio too, without running a
+second live-data connection.
+
 ## Quick start
 
 ```bash
@@ -215,11 +243,16 @@ The `watch` band exists precisely so borderline cases get a sentence rather than
 
 ## Data honesty
 
-Every figure in this project is **fabricated mock data** built for demonstration. The historical
-episodes referenced are real (2020 crash, 2022 rate-hike selloff, 2021 meme-stock run) but the
-outcome numbers are illustrative rather than researched, and the datasets say so in their own
-`_disclaimer` fields. There is no brokerage connection and none is simulated — no tool in this
-server can place, block or delay a trade.
+Every historical/behavioural figure in this project is **fabricated mock data** built for
+demonstration. The historical episodes referenced are real (2020 crash, 2022 rate-hike selloff,
+2021 meme-stock run) but the outcome numbers are illustrative rather than researched, and the
+datasets say so in their own `_disclaimer` fields.
+
+Prices can be genuinely live (via Finnhub, if `FINNHUB_API_KEY` is set — see
+[Real-time data and paper trading](#real-time-data-and-paper-trading)), and trades against the
+demo portfolio genuinely execute and persist. What still does not exist, anywhere in this project:
+a real brokerage connection, real order routing, or real money. "Executing a trade" means editing
+this demo's own JSON state using a real or simulated price — nothing is ever sent to a market.
 
 ## Scope
 
