@@ -2,12 +2,14 @@ import { ResourceDecorator as Resource, ExecutionContext } from '@nitrostack/cor
 import {
   DATA_DISCLAIMER,
   getBiasDictionary,
+  getHerdSentiment,
   getHistoricalPatterns,
   getMarketData,
   getPortfolio,
+  getWaitOutcomes,
   readDecisionLog
 } from './guardian.store.js';
-import { valuePortfolio } from './guardian.logic.js';
+import { summarizeTradeHistory, valuePortfolio } from './guardian.logic.js';
 
 const json = (uri: string, payload: unknown) => ({
   contents: [{ uri, mimeType: 'application/json', text: JSON.stringify(payload, null, 2) }]
@@ -67,6 +69,40 @@ export class GuardianResources {
   async biasSignals(uri: string, ctx: ExecutionContext) {
     ctx.logger.info('Reading bias signal dictionary');
     return json(uri, getBiasDictionary());
+  }
+
+  @Resource({
+    uri: 'guardian://trade-history',
+    name: 'Personal Decision History',
+    description: "This user's prior bias signals, what they chose, and how those calls turned out.",
+    mimeType: 'application/json'
+  })
+  async tradeHistory(uri: string, ctx: ExecutionContext) {
+    ctx.logger.info('Reading trade history resource');
+    return json(uri, { ...summarizeTradeHistory(), _disclaimer: DATA_DISCLAIMER });
+  }
+
+  @Resource({
+    uri: 'guardian://wait-outcomes',
+    name: 'Wait-Window Base Rates',
+    description:
+      'What happened to a mock cohort that waited 24h / 7d / 30d instead of acting, by event type. Includes the cases where waiting cost money.',
+    mimeType: 'application/json'
+  })
+  async waitOutcomes(uri: string, ctx: ExecutionContext) {
+    ctx.logger.info('Reading wait outcomes resource');
+    return json(uri, getWaitOutcomes());
+  }
+
+  @Resource({
+    uri: 'guardian://herd-sentiment',
+    name: 'Crowd Activity',
+    description: 'Mock retail order flow, mention volume and fear/greed reading. Descriptive only, never a signal.',
+    mimeType: 'application/json'
+  })
+  async herdSentiment(uri: string, ctx: ExecutionContext) {
+    ctx.logger.info('Reading herd sentiment resource');
+    return json(uri, getHerdSentiment());
   }
 
   @Resource({

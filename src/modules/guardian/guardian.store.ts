@@ -146,6 +146,72 @@ export type HistoricalPatterns = Record<string, HistoricalPatternGroup> & {
   _disclaimer: string;
 };
 
+export interface TradeHistoryEntry {
+  decision_id: string;
+  logged_at: string;
+  user_intent: string;
+  detected_pattern: string | null;
+  confidence: number | null;
+  user_decision: string;
+  symbols?: string[];
+  event_type?: string | null;
+  outcome_note?: string;
+  outcome?: 'worse_than_waiting' | 'better_than_waiting' | 'better_than_acting' | 'neutral' | 'not_applicable';
+}
+
+export interface TradeHistory {
+  user_id: string;
+  entries: TradeHistoryEntry[];
+}
+
+export interface WaitOutcome {
+  wait: string;
+  sample_size: number;
+  share_better_after_waiting: number;
+  share_worse_after_waiting: number;
+  median_move_pct: number;
+  worst_case_move_pct: number;
+}
+
+export interface WaitWindow {
+  event_type: string;
+  label: string;
+  outcomes: WaitOutcome[];
+  plain_language: string;
+  direction_note?: string;
+}
+
+export interface WaitOutcomes {
+  _disclaimer: string;
+  _compliance_note: string;
+  windows: WaitWindow[];
+}
+
+export interface SymbolSentiment {
+  retail_net_flow: 'net_selling' | 'net_buying' | 'balanced';
+  share_selling_24h: number;
+  share_buying_24h: number;
+  mention_volume_24h: number;
+  mention_change_pct: number;
+  crowd_mood: string;
+  crowd_note: string;
+}
+
+export interface HerdSentiment {
+  _compliance_note: string;
+  as_of: string;
+  market_wide: {
+    fear_greed_index: number;
+    label: string;
+    scale_note: string;
+    retail_net_flow: string;
+    share_of_accounts_trading_today: number;
+    vs_typical_day: string;
+  };
+  symbols: Record<string, SymbolSentiment>;
+  crowding_thresholds: { crowded: number; elevated: number; note: string };
+}
+
 // ---------------------------------------------------------------------------
 // Cached dataset accessors
 // ---------------------------------------------------------------------------
@@ -154,6 +220,9 @@ export const getPortfolio = memo(() => loadJson<Portfolio>('portfolio.json'));
 export const getMarketData = memo(() => loadJson<MarketData>('market-events.json'));
 export const getBiasDictionary = memo(() => loadJson<BiasDictionary>('bias-signal-patterns.json'));
 export const getHistoricalPatterns = memo(() => loadJson<HistoricalPatterns>('historical-patterns.json'));
+export const getTradeHistory = memo(() => loadJson<TradeHistory>('trade-history.json'));
+export const getWaitOutcomes = memo(() => loadJson<WaitOutcomes>('wait-outcomes.json'));
+export const getHerdSentiment = memo(() => loadJson<HerdSentiment>('herd-sentiment.json'));
 
 export const DATA_DISCLAIMER =
   'All portfolio, price and historical figures in this server are fabricated mock data for demonstration. Nothing here is investment advice.';

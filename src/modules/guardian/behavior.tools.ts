@@ -7,10 +7,19 @@ import {
   appendDecision,
   getHistoricalPatterns,
   getMarketData,
+  getWaitOutcomes,
   nextDecisionId,
   readDecisionLog
 } from './guardian.store.js';
-import { buildReflection, detectSignal, lintForAdvice, scoreRelevance, valuePortfolio } from './guardian.logic.js';
+import {
+  buildReflection,
+  detectSignal,
+  lintForAdvice,
+  scoreRelevance,
+  simulateWait,
+  summarizeTradeHistory,
+  valuePortfolio
+} from './guardian.logic.js';
 
 type PatternId = 'panic_sell' | 'fomo_buy' | 'herd_follow';
 
@@ -178,6 +187,78 @@ export class BehaviorTools {
       next_step:
         'Present this to the user, then call log_decision_context with whatever they choose. The choice is theirs either way — proceeding is a perfectly valid outcome and must be recorded without editorialising.',
       disclaimer: DATA_DISCLAIMER
+    };
+  }
+
+  @Tool({
+    name: 'get_user_trade_history',
+    description:
+      "Look up this user's own past decisions: how many times each bias pattern has fired, how often they proceeded versus paused, and how those earlier calls turned out. Use it to make an intervention personal — \"this is the 3rd panic-sell signal on this account this month\" lands harder than any general statistic. Report the count as an observation, never as an accusation.",
+    inputSchema: z.object({
+      pattern: z
+        .enum(['panic_sell', 'fomo_buy', 'herd_follow'])
+        .optional()
+        .describe('Pattern currently detected. Supplying it returns a repeat-occurrence insight for that pattern.'),
+      limit: z.number().int().min(1).max(20).default(5).describe('How many recent records to return')
+    }),
+    examples: {
+      request: { pattern: 'panic_sell' },
+      response: {
+        repeat_insight: 'This is the 3rd panic-sell signal on this account this month — 2 before today.',
+        by_pattern_this_month: { panic_sell: 2 },
+        proceeded: 3
+      }
+    }
+  })
+  async getUserTradeHistory(input: { pattern?: PatternId; limit?: number }, ctx: ExecutionContext) {
+    const summary = summarizeTradeHistory(input.pattern);
+    const limit = input.limit ?? 5;
+
+    ctx.logger.info('Fetched trade history', {
+      pattern: input.pattern ?? null,
+      interventions: summary.interventions_all_time
+    });
+
+    return {
+      ...summary,
+      recent: summary.recent.slice(0, limit),
+      how_to_use:
+        'State the count plainly and move on. The useful observation is that a pattern is recurring, not that the user is bad at this — and note that their record includes cases where acting was the right call.',
+      disclaimer: DATA_DISCLAIMER
+    };
+  }
+
+  @Tool({
+    name: 'simulate_wait_outcome',
+    description:
+      'Show what happened to a mock cohort that waited 24 hours, 7 days or 30 days instead of acting immediately, for this type of market event. Returns the favourable AND unfavourable shares together — for company-specific news, waiting historically left the cohort worse off, and that must be shown too. Use it to give a base rate for the cost of a pause, never to argue that pausing is correct.',
+    inputSchema: z.object({
+      event_type: z
+        .string()
+        .optional()
+        .describe('Event driving the decision: broad_dip, sector_move, rate_decision, earnings, hype_cycle'),
+      wait: z
+        .enum(['24 hours', '7 days', '30 days'])
+        .optional()
+        .describe('Highlight one window. Omit to return all three.')
+    }),
+    examples: {
+      request: { event_type: 'broad_dip', wait: '24 hours' },
+      response: {
+        headline_window: { wait: '24 hours', share_better_after_waiting: 0.58, share_worse_after_waiting: 0.42 },
+        both_sides: 'Waiting left this mock cohort worse off 42%, 36%, 29% of the time.'
+      }
+    }
+  })
+  async simulateWaitOutcome(input: { event_type?: string; wait?: string }, ctx: ExecutionContext) {
+    const simulation = simulateWait(input.event_type, input.wait);
+    ctx.logger.info('Simulated wait outcome', { event_type: simulation.event_type, wait: input.wait ?? 'all' });
+
+    return {
+      ...simulation,
+      presentation_rule:
+        'Never quote share_better_after_waiting without share_worse_after_waiting in the same breath. Half of this table is the argument for acting now, and omitting it would turn a base rate into a recommendation to hold.',
+      disclaimer: getWaitOutcomes()._disclaimer
     };
   }
 

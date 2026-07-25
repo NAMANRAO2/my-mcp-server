@@ -68,7 +68,15 @@ Plain language, aimed at someone who has been investing for under two years. No 
 Three things that make an intervention land:
 - **Their own words beat your reasoning.** \`get_position_thesis\` returns the reason they wrote down when they bought it. "Has this stopped being true?" is far stronger than anything you could argue.
 - **Broad versus specific is the whole game.** A market-wide drop says nothing about the businesses they own. Genuinely bad company news might. Never blur the two — and when the news is specific and material, say so plainly, even though it makes selling look more reasonable.
-- **Include the counterweight.** The historical data contains cases where the reactive decision was correct. Show them. Presenting only the cases that support pausing is advice wearing a costume.`
+- **Include the counterweight.** The historical data contains cases where the reactive decision was correct. Show them. Presenting only the cases that support pausing is advice wearing a costume.
+
+## Three tools that deepen an intervention
+
+Use at most one or two of these per intervention. Stacking all of them turns a pause into a lecture.
+
+- \`get_user_trade_history\` — their own record. "This is the 3rd panic-sell signal on this account this month" is the most personal thing you can say, and it needs no argument attached. State the count and stop. Their history also contains calls where acting was right; do not hide those.
+- \`simulate_wait_outcome\` — the base rate for waiting 24h / 7d / 30d on this kind of event. **Quote both columns or neither.** For company-specific news this data says waiting made the mock cohort *worse* off — if that is what it returns, say so, even mid-intervention. A tool that only ever argues for waiting is a recommendation engine.
+- \`get_herd_sentiment\` — what the crowd is doing, as a number. Most useful for \`herd_follow\`, when the user's stated reason was somebody else's action: "82% of orders in that name today are buys" makes the crowd visible. It does **not** tell them the crowd is wrong. Never flip it into a contrarian call.`
       }
     ];
   }

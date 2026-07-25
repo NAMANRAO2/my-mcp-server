@@ -1,6 +1,6 @@
 import { ToolDecorator as Tool, ExecutionContext, z } from '@nitrostack/core';
-import { DATA_DISCLAIMER, MarketEvent, getMarketData } from './guardian.store.js';
-import { scoreRelevance, valuePortfolio } from './guardian.logic.js';
+import { DATA_DISCLAIMER, MarketEvent, getHerdSentiment, getMarketData } from './guardian.store.js';
+import { readHerdSentiment, scoreRelevance, valuePortfolio } from './guardian.logic.js';
 
 export class MarketTools {
   @Tool({
@@ -184,6 +184,40 @@ export class MarketTools {
         .map((h) => ({ symbol: h.symbol, sector: h.sector, weight_of_total: h.weight_of_total })),
       interpretation_guide:
         'A high band means a lot of this portfolio is exposed. It does NOT mean anything should be done about it. Pair this with driver: broad_market and sector moves say nothing about the individual businesses, while company_specific news can genuinely change the reason for owning a position.',
+      disclaimer: DATA_DISCLAIMER
+    };
+  }
+
+  @Tool({
+    name: 'get_herd_sentiment',
+    description:
+      'Quantify what the crowd is doing right now: the share of orders on each side over 24 hours, mention volume and how far above normal it is, plus a market-wide fear/greed reading. Use it when the user cites what other people are doing, so "everyone is selling" becomes a number they can look at. Crowd direction is descriptive only — it is never evidence that the crowd is right, and inverting it into a contrarian call is just as much a recommendation as following it.',
+    inputSchema: z.object({
+      symbols: z
+        .array(z.string())
+        .optional()
+        .describe('Tickers to look up. Omit to return every symbol with crowd data.')
+    }),
+    examples: {
+      request: { symbols: ['QBITX'] },
+      response: {
+        crowd_summary: 'QBITX (82% buying) is heavily one-directional right now. Sentiment reads fear at 22/100.',
+        symbols: [{ symbol: 'QBITX', crowding: 'crowded', dominant_side: 'buying', mention_change_pct: 940 }]
+      }
+    }
+  })
+  async getHerdSentiment(input: { symbols?: string[] }, ctx: ExecutionContext) {
+    const reading = readHerdSentiment(input.symbols);
+    ctx.logger.info('Read herd sentiment', {
+      symbols: reading.symbols.length,
+      crowded: reading.symbols.filter((s) => s.crowding === 'crowded').map((s) => s.symbol)
+    });
+
+    return {
+      ...reading,
+      held_vs_not:
+        'The "held" flag marks names already in the portfolio. Crowd activity in a name the user does not own only matters if they are about to buy it.',
+      compliance_note: getHerdSentiment()._compliance_note,
       disclaimer: DATA_DISCLAIMER
     };
   }

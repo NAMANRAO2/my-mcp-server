@@ -14,9 +14,16 @@ import {
   MarketEvent,
   Portfolio,
   Quote,
+  SymbolSentiment,
+  TradeHistoryEntry,
+  WaitOutcome,
   getBiasDictionary,
+  getHerdSentiment,
   getMarketData,
-  getPortfolio
+  getPortfolio,
+  getTradeHistory,
+  getWaitOutcomes,
+  readDecisionLog
 } from './guardian.store.js';
 
 const round = (n: number, dp = 2) => Number(n.toFixed(dp));
@@ -550,5 +557,214 @@ export function buildReflection(input: ReflectionInput): ReflectionOutput {
     full_text: fullText,
     compliance: lintForAdvice(fullText),
     disclaimer: 'Informational only. Not investment advice. All figures are mock data.'
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Personal decision history
+// ---------------------------------------------------------------------------
+
+export interface TradeHistorySummary {
+  user_id: string;
+  as_of: string;
+  total_records: number;
+  interventions_all_time: number;
+  by_pattern_all_time: Record<string, number>;
+  by_pattern_this_month: Record<string, number>;
+  this_month_label: string;
+  proceeded: number;
+  paused_or_changed_mind: number;
+  outcomes: Record<string, number>;
+  repeat_insight: string | null;
+  recent: TradeHistoryEntry[];
+  sources: string;
+}
+
+/**
+ * Merges the fabricated prior-months history with decisions logged in this session.
+ *
+ * The on-disk JSONL is deliberately NOT read: it accumulates across test runs, which would make
+ * the counts non-deterministic mid-demo. Session memory plus seeded history is reproducible.
+ */
+export function summarizeTradeHistory(pattern?: string): TradeHistorySummary {
+  const seeded = getTradeHistory();
+  const session: TradeHistoryEntry[] = readDecisionLog().map((d) => ({
+    decision_id: d.decision_id,
+    logged_at: d.logged_at,
+    user_intent: d.user_intent,
+    detected_pattern: d.detected_pattern,
+    confidence: d.confidence,
+    user_decision: d.user_decision,
+    outcome: 'not_applicable'
+  }));
+
+  const all = [...seeded.entries, ...session].sort((a, b) => a.logged_at.localeCompare(b.logged_at));
+
+  // "This month" is anchored to the dataset's as_of date, not the wall clock, so the demo reads
+  // the same way whenever it is run.
+  const asOf = getPortfolio().as_of;
+  const monthPrefix = asOf.slice(0, 7);
+
+  const interventions = all.filter((e) => e.detected_pattern !== null);
+  const thisMonth = interventions.filter((e) => e.logged_at.slice(0, 7) === monthPrefix);
+
+  const tally = (entries: TradeHistoryEntry[]) =>
+    entries.reduce<Record<string, number>>((acc, e) => {
+      const key = e.detected_pattern as string;
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+
+  const byPatternAllTime = tally(interventions);
+  const byPatternThisMonth = tally(thisMonth);
+
+  const outcomes = interventions.reduce<Record<string, number>>((acc, e) => {
+    if (!e.outcome || e.outcome === 'not_applicable') return acc;
+    acc[e.outcome] = (acc[e.outcome] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  let repeatInsight: string | null = null;
+  if (pattern) {
+    const priorThisMonth = byPatternThisMonth[pattern] ?? 0;
+    const priorAllTime = byPatternAllTime[pattern] ?? 0;
+    const label = pattern.replace(/_/g, '-');
+    if (priorThisMonth >= 1) {
+      const ordinal = ['1st', '2nd', '3rd', '4th', '5th', '6th'][priorThisMonth] ?? `${priorThisMonth + 1}th`;
+      repeatInsight = `This is the ${ordinal} ${label} signal on this account this month — ${priorThisMonth} before today. Worth noticing as a pattern in itself, separately from whether any one of them was the right call.`;
+    } else if (priorAllTime >= 1) {
+      repeatInsight = `${priorAllTime} previous ${label} signal${priorAllTime > 1 ? 's' : ''} on this account, though none earlier this month.`;
+    } else {
+      repeatInsight = `First ${label} signal recorded on this account.`;
+    }
+  }
+
+  return {
+    user_id: seeded.user_id,
+    as_of: asOf,
+    total_records: all.length,
+    interventions_all_time: interventions.length,
+    by_pattern_all_time: byPatternAllTime,
+    by_pattern_this_month: byPatternThisMonth,
+    this_month_label: monthPrefix,
+    proceeded: interventions.filter((e) => e.user_decision === 'proceeded').length,
+    paused_or_changed_mind: interventions.filter((e) =>
+      ['paused_to_reflect', 'changed_mind'].includes(e.user_decision)
+    ).length,
+    outcomes,
+    repeat_insight: repeatInsight,
+    recent: all.slice(-5).reverse(),
+    sources: 'Seeded prior-months history plus decisions logged in this session.'
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Wait simulation
+// ---------------------------------------------------------------------------
+
+export interface WaitSimulation {
+  event_type: string;
+  matched_on: string;
+  label: string;
+  direction: 'selling' | 'buying';
+  outcomes: WaitOutcome[];
+  headline_window: WaitOutcome | null;
+  plain_language: string;
+  both_sides: string;
+  caveat: string;
+}
+
+export function simulateWait(eventType: string | undefined, wait?: string): WaitSimulation {
+  const data = getWaitOutcomes();
+  const requested = eventType ?? 'broad_dip';
+
+  const window =
+    data.windows.find((w) => w.event_type === requested) ??
+    data.windows.find((w) => requested.includes(w.event_type) || w.event_type.includes(requested)) ??
+    data.windows.find((w) => w.event_type === 'broad_dip')!;
+
+  const headline = wait ? window.outcomes.find((o) => o.wait === wait) ?? null : window.outcomes[0];
+  const direction = window.event_type === 'hype_cycle' ? 'buying' : 'selling';
+
+  const worstShares = window.outcomes.map((o) => Math.round(o.share_worse_after_waiting * 100));
+
+  return {
+    event_type: window.event_type,
+    matched_on:
+      window.event_type === requested
+        ? `exact match on "${requested}"`
+        : `no window for "${requested}" — using "${window.event_type}" as the closest comparable`,
+    label: window.label,
+    direction,
+    outcomes: window.outcomes,
+    headline_window: headline,
+    plain_language: window.plain_language,
+    both_sides: `Across the three windows, waiting left this mock cohort worse off ${worstShares.join('%, ')}% of the time. ${
+      window.direction_note ?? 'Those cases are as real as the favourable ones.'
+    }`,
+    caveat:
+      'This is what happened to a mock cohort in past comparable episodes. It is not a prediction of what happens next, and it does not indicate what any individual should do. Present the unfavourable share alongside the favourable one, always.'
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Herd sentiment
+// ---------------------------------------------------------------------------
+
+export interface HerdReading {
+  as_of: string;
+  market_wide: ReturnType<typeof getHerdSentiment>['market_wide'];
+  symbols: Array<
+    SymbolSentiment & {
+      symbol: string;
+      held: boolean;
+      crowding: 'crowded' | 'elevated' | 'normal';
+      dominant_side: 'selling' | 'buying' | 'balanced';
+    }
+  >;
+  unknown_symbols: string[];
+  crowd_summary: string;
+  interpretation_guide: string;
+}
+
+export function readHerdSentiment(symbols?: string[]): HerdReading {
+  const data = getHerdSentiment();
+  const held = new Set(getPortfolio().holdings.map((h) => h.symbol));
+  const wanted = symbols?.map((s) => s.toUpperCase());
+
+  const keys = wanted ? wanted.filter((s) => data.symbols[s]) : Object.keys(data.symbols);
+  const { crowded, elevated } = data.crowding_thresholds;
+
+  const rows = keys.map((symbol) => {
+    const s = data.symbols[symbol];
+    const dominantShare = Math.max(s.share_selling_24h, s.share_buying_24h);
+    return {
+      ...s,
+      symbol,
+      held: held.has(symbol),
+      crowding: (dominantShare >= crowded ? 'crowded' : dominantShare >= elevated ? 'elevated' : 'normal') as
+        | 'crowded'
+        | 'elevated'
+        | 'normal',
+      dominant_side: (s.share_selling_24h > s.share_buying_24h
+        ? 'selling'
+        : s.share_buying_24h > s.share_selling_24h
+          ? 'buying'
+          : 'balanced') as 'selling' | 'buying' | 'balanced'
+    };
+  });
+
+  const crowdedRows = rows.filter((r) => r.crowding === 'crowded');
+
+  return {
+    as_of: data.as_of,
+    market_wide: data.market_wide,
+    symbols: rows,
+    unknown_symbols: wanted?.filter((s) => !data.symbols[s]) ?? [],
+    crowd_summary: crowdedRows.length
+      ? `${crowdedRows.map((r) => `${r.symbol} (${Math.round(Math.max(r.share_selling_24h, r.share_buying_24h) * 100)}% ${r.dominant_side})`).join(', ')} ${crowdedRows.length === 1 ? 'is' : 'are'} heavily one-directional right now. Sentiment overall reads ${data.market_wide.label} at ${data.market_wide.fear_greed_index}/100.`
+      : `No name here is unusually one-directional. Sentiment overall reads ${data.market_wide.label} at ${data.market_wide.fear_greed_index}/100.`,
+    interpretation_guide:
+      'This describes what other people are doing, nothing more. A crowded trade is not evidence that the crowd is wrong, and "everyone is selling" is not a reason to sell or to buy. The only question it answers is whether the user is about to do the same thing as everyone else, which is worth knowing when the stated reason for the trade was what someone else did.'
   };
 }
