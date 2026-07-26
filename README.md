@@ -10,10 +10,17 @@ to drive a bad decision. BidWiserAI does both — and it never recommends a trad
 
 ---
 
-## Stack
+## Tech Stack
 
-what does it do and who it is for and what makes it special ? --- this is a question we have been asked about our BidWiserAI in short
-
+| Layer | Technology |
+| --- | --- |
+| MCP Server Framework | [NitroStack](https://docs.nitrostack.ai) (`@nitrostack/core`) |
+| Language | TypeScript 5 |
+| Schema Validation | [Zod](https://zod.dev) |
+| UI Widgets | Next.js (via `@nitrostack/widgets`) |
+| Standalone Web App | Express + Vite |
+| Live Market Data | [Finnhub](https://finnhub.io) WebSocket API |
+| Transport | MCP stdio (dev) · HTTP + stdio dual (prod) |
 
 ## The Two Layers
 
@@ -354,16 +361,3 @@ The `watch` band exists precisely so borderline cases get a sentence rather than
 | `NODE_ENV` | No | `development` (stdio transport) or `production` (dual transport) |
 | `MCP_TRANSPORT_TYPE` | No | Override transport: `stdio` \| `http` \| `dual` |
 
----
-
-## Tech Stack
-
-| Layer | Technology |
-| --- | --- |
-| MCP Server Framework | [NitroStack](https://docs.nitrostack.ai) (`@nitrostack/core`) |
-| Language | TypeScript 5 |
-| Schema Validation | [Zod](https://zod.dev) |
-| UI Widgets | Next.js (via `@nitrostack/widgets`) |
-| Standalone Web App | Express + Vite |
-| Live Market Data | [Finnhub](https://finnhub.io) WebSocket API |
-| Transport | MCP stdio (dev) · HTTP + stdio dual (prod) |
