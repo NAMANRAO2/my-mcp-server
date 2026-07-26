@@ -347,13 +347,14 @@ This scenario highlights the strict trade-intent gate designed to prevent false 
 
 ## Environment Variables
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `ANTHROPIC_API_KEY` | Yes | LLM provider API key |
-| `PORT` | No | Express backend port (default: `3000`) |
-| `MCP_SERVER_PORT` | No | MCP server port (default: `3001`) |
-| `FINNHUB_API_KEY` | No | Free key from [finnhub.io/register](https://finnhub.io/register). Without it, quotes fall back to mock data gracefully. |
-| `NITRO_LOG_LEVEL` | No | Log verbosity: `info` \| `debug` \| `warn` \| `error` |
-| `NODE_ENV` | No | `development` (stdio transport) or `production` (dual transport) |
-| `MCP_TRANSPORT_TYPE` | No | Override transport: `stdio` \| `http` \| `dual` |
+### Required Variables
+* **`ANTHROPIC_API_KEY`**: Your Anthropic LLM provider API key. *(Must be set to run the agent).*
+
+### Optional Configuration
+* **`PORT`**: Port for the Express backend dashboard. *(Defaults to `3000` if not set).*
+* **`MCP_SERVER_PORT`**: Port for the MCP server. *(Defaults to `3001` if not set).*
+* **`FINNHUB_API_KEY`**: Free API key from [finnhub.io/register](https://finnhub.io/register) for streaming live stock prices. *(If not set, prices fall back to simulated/mock data gracefully).*
+* **`NITRO_LOG_LEVEL`**: Adjusts log verbosity. Supported values: `info` | `debug` | `warn` | `error`. *(Defaults to `info` if not set).*
+* **`NODE_ENV`**: Set to `development` (uses standard I/O stdio transport) or `production` (uses dual transport).
+* **`MCP_TRANSPORT_TYPE`**: Explicitly override the transport protocol layer. Supported values: `stdio` | `http` | `dual`.
 
