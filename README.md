@@ -339,19 +339,9 @@ as noise — it names the flags attached to the data (crowded trade, no earnings
 volatility), gives the base rate for late entries, includes the case where a crowded run-up kept
 going, and asks: *"If this had gone sideways for three months instead, would you still want to own it?"*
 
-### Scenario 3 — Herd Following
+### Scenario 3 — Herd Following & Control Queries
 
-The one to test hardest. All of these return `none` or `watch`, and none may produce a modal:
-
-| Message | Result | Why |
-| --- | --- | --- |
-| "How's my portfolio doing?" | `none` (0.00) | No trade intent — the gate never opens |
-| "Why is my account down today?" | `none` (0.00) | Informational, however anxious it sounds |
-| "Should I be worried about the tech dip?" | `none` (0.00) | A question, not an intent |
-| "I want to sell 5 shares of XOM as planned to rebalance" | `none` (0.05) | Gate opens, then deliberation markers score it down |
-| "sell all my tech stocks" | `watch` (0.52) | Totality without fear or urgency — surface context, don't run a full intervention |
-
-The `watch` band exists precisely so borderline cases get a sentence rather than a modal.
+This scenario highlights the strict trade-intent gate designed to prevent false positive interventions. Informational queries such as *"How's my portfolio doing?"* or *"Why is my account down today?"* and basic questions like *"Should I be worried about the tech dip?"* all resolve to `none` (0.00 confidence) because they lack explicit trading intent. Deliberate planning statements, such as *"I want to sell 5 shares of XOM as planned to rebalance"*, also resolve to `none` (0.05 confidence) since the signal is scored down by the presence of planning and rationality markers. Finally, borderline cases like *"sell all my tech stocks"* trigger a `watch` state (0.52 confidence), where the system displays relevance context in the chat window but avoids displaying a full cooling-off intervention modal.
 
 ---
 
