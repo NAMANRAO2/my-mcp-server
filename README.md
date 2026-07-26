@@ -4,9 +4,7 @@
 
 > We don't tell you what to do. We stop you doing something you'll regret.
 
-Retail investors have more market data than ever and nothing that **(a)** explains what is actually
-relevant to *their* portfolio right now, or **(b)** intervenes at the exact moment a bias is about
-to drive a bad decision. BidWiserAI does both — and it never recommends a trade.
+Retail investors have more market data than ever and nothing that explains what is actually relevant to *their* portfolio right now, or intervenes at the exact moment a bias is about to drive a bad decision. BidWiserAI does both — and it never recommends a trade.
 
 ## Live Demo
 
