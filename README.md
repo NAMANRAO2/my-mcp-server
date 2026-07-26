@@ -8,6 +8,12 @@ Retail investors have more market data than ever and nothing that **(a)** explai
 relevant to *their* portfolio right now, or **(b)** intervenes at the exact moment a bias is about
 to drive a bad decision. BidWiserAI does both — and it never recommends a trade.
 
+## Live Demo
+
+🚀 Live MCP endpoint: https://nitrochat-bidwi-agentic-alchemists-amrita-university-coimbatore.app.nitrocloud.ai/embed
+
+Point your MCP client at the endpoint above to try it instantly. Prefer a hosted setup? Deploy your own in minutes on Nitrostack.
+
 ---
 
 ## Tech Stack
