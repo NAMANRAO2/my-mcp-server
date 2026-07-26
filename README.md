@@ -12,6 +12,8 @@ to drive a bad decision. BidWiserAI does both — and it never recommends a trad
 
 🚀 Live MCP endpoint: https://nitrochat-bidwi-agentic-alchemists-amrita-university-coimbatore.app.nitrocloud.ai/embed
 
+🌐 Live Web App: https://bidwiserai-6a65-agentic-alchemists-amrita-university-coimbatore.app.nitrocloud.ai/
+
 Point your MCP client at the endpoint above to try it instantly. Prefer a hosted setup? Deploy your own in minutes on Nitrostack.
 
 ---
