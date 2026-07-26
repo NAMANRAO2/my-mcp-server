@@ -6,6 +6,12 @@
 
 Retail investors have more market data than ever and nothing that explains what is actually relevant to *their* portfolio right now, or intervenes at the exact moment a bias is about to drive a bad decision. BidWiserAI does both — and it never recommends a trade.
 
+---
+
+## What is Model Context Protocol (MCP)?
+
+Model Context Protocol (MCP) is an open standard that allows LLMs (like Claude or custom agents) to securely read data and interact with tools from local or remote servers. BidWiserAI implements this standard, exposing structured tools, real-time portfolio resources, and bias-reflection prompts to any MCP-compliant client.
+
 ## Live Demo
 
 🚀 Live MCP endpoint: https://nitrochat-bidwi-agentic-alchemists-amrita-university-coimbatore.app.nitrocloud.ai/embed
@@ -264,6 +270,48 @@ using the current live/mock price. Restricted to symbols already in the portfoli
 touches a real brokerage** — no order routing, no account link, no real money. State persists to
 `logs/portfolio-state.json` (gitignored) and the MCP server reads the same file, so a trade made
 through the web app is visible in NitroStudio too.
+
+---
+
+## Client Integration
+
+Before configuring any client, make sure to compile the TypeScript server by running:
+```bash
+npm run build
+```
+
+### Claude Desktop
+Add the following server configuration to your `claude_desktop_config.json` file:
+* **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+* **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "bidwiserai": {
+      "command": "node",
+      "args": ["C:/Users/naman/OneDrive/Desktop/my-mcp-server/dist/index.js"],
+      "env": {
+        "ANTHROPIC_API_KEY": "your-anthropic-api-key-here",
+        "FINNHUB_API_KEY": "your-finnhub-key-here"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+1. Go to **Settings** > **Features** > **MCP**.
+2. Click **+ Add New MCP Server**.
+3. Input the following details:
+   - **Name:** `BidWiserAI`
+   - **Type:** `stdio`
+   - **Command:** `node C:/Users/naman/OneDrive/Desktop/my-mcp-server/dist/index.js`
+4. Save the configuration and verify the server status turns green (Connected).
+
+### Transport Protocols
+* **Stdio (Standard I/O):** Used for local desktop integrations (like Claude Desktop and Cursor).
+* **SSE (Server-Sent Events):** Used for web-based, cloud, or remote environments (such as deployed endpoints like NitroStudio or custom frontend embeds).
 
 ---
 
