@@ -106,7 +106,7 @@ export default function PortfolioDashboard() {
 
       <header className="pg-head">
         <div>
-          <h1>Portfolio Guardian</h1>
+          <h1>BitWiserAI</h1>
           <p className="pg-sub">
             {data.profile.display_name} · {data.holdings.length} holdings · as of {data.as_of}
           </p>

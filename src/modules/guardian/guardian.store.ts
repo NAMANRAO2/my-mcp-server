@@ -1,5 +1,5 @@
 /**
- * Data access for the Portfolio Guardian.
+ * Data access for the BitWiserAI.
  *
  * All datasets are fabricated mock data shipped as JSON under `src/data/`. They are read from
  * disk once and cached in memory. The decision log is the only mutable dataset: it lives in

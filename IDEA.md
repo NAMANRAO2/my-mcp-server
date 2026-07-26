@@ -1,4 +1,4 @@
-# Portfolio Guardian Agent — Locked Scope
+# BitWiserAI Agent — Locked Scope
 
 > **One line:** A behavioural guard for retail investors. It does not tell you what to buy or sell —
 > it tells you what actually matters to *your* portfolio, and it slows you down at the exact moment

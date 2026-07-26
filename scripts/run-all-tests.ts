@@ -12,7 +12,7 @@ import {
 } from '../src/modules/guardian/guardian.store.js';
 
 console.log('================================================================');
-console.log('       PORTFOLIO GUARDIAN — AUTOMATED TEST SUITE (ALL 8 TESTS)');
+console.log('       BITWISERAI — AUTOMATED TEST SUITE (ALL 8 TESTS)');
 console.log('================================================================\n');
 
 let passCount = 0;

@@ -12,7 +12,7 @@ export class GuardianPrompts {
   @Prompt({
     name: 'portfolio_guardian_system',
     description:
-      'The system prompt for the Portfolio Guardian agent. Load this into the chat client before using the tools — it defines the compliance boundary and how the agent should sequence its tool calls.',
+      'The system prompt for the BitWiserAI agent. Load this into the chat client before using the tools — it defines the compliance boundary and how the agent should sequence its tool calls.',
     arguments: [
       {
         name: 'user_name',
