@@ -8,9 +8,12 @@ Retail investors have more market data than ever and nothing that explains what 
 
 ---
 
-## What is Model Context Protocol (MCP)?
+## Our BidWiserAI MCP Server
 
-Model Context Protocol (MCP) is an open standard that allows LLMs (like Claude or custom agents) to securely read data and interact with tools from local or remote servers. BidWiserAI implements this standard, exposing structured tools, real-time portfolio resources, and bias-reflection prompts to any MCP-compliant client.
+BidWiserAI is a Model Context Protocol (MCP) server built with NitroStack.
+
+* **What it does:** Exposes 11 tools (for bias detection and relevance scoring), 10 portfolio/market resources, and system prompts to prevent emotional retail trading decisions.
+* **How to run it:** Runs locally via **Stdio transport** (`node dist/index.js` for clients like Claude Desktop/Cursor) or over the web via **SSE transport** (HTTP ports `3000`/`3001` or NitroCloud).
 
 ## Live Demo
 
