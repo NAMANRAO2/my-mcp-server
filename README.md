@@ -1,4 +1,4 @@
-﻿# BidWiserAI
+# BidWiserAI
 
 **A behavioural guard for retail investors, built as a NitroStack MCP server.**
 
@@ -9,6 +9,11 @@ relevant to *their* portfolio right now, or **(b)** intervenes at the exact mome
 to drive a bad decision. BidWiserAI does both — and it never recommends a trade.
 
 ---
+
+## Stack
+
+what does it do and who it is for and what makes it special ? --- this is a question we have been asked about our BidWiserAI in short
+
 
 ## The Two Layers
 
